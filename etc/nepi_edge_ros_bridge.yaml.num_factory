@@ -1,0 +1,75 @@
+enabled: true                                                     # Top-level NEPI Edge device enabled/disabled
+auto_attempts_per_hour: 3                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
+nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
+
+# TODO: Config param mapping support: lb config messages to specific parameter adjustments
+
+lb:
+  enabled: true                                                   # Specifies whether LB will be attempted
+  data_sets_per_hour: 4                                           # Number of times per hour status and enabled data topics will be collected as an LB data set
+  max_data_wait_time_s: 30.0                                      # Max number of seconds to wait for enabled data to arrive before generating the output
+  max_data_queue_size_mb: 20                                      # Max megabytes queued in LB folder
+  purge_oldest: true                                              # Max queue size handling: true ==> delete oldest data subfolders, false ==> suppress newest data subfolders
+
+  # TODO: define the ROS topics and services that generate the individual fields of the status message... will hard-code for 3DX for now
+
+  # The following is a list of ROS topics published on the device that are eligible for conversion to LB data products
+  available_data_sources:
+    -
+      topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name relative to this node's parent namespace
+      enabled: false                                              # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      conversion_parameters:                                      # List of parameter objects (python name=value keyword params) passed to conversion_call
+    -
+      topic: 3dx_device/stereo_cam_mgr/img_1/image_raw
+      enabled: false
+      conversion_call: lb_convert_image
+      conversion_parameters:
+    -
+      topic: 3dx_device/stereo_cam_mgr/img_alt/image_raw
+      enabled: false
+      conversion_call: lb_convert_image
+      conversion_parameters:
+    -
+      topic: 3dx_device/stereo_cam_driver/left/image_rect_color
+      enabled: true
+      conversion_call: lb_convert_image
+      conversion_parameters:
+    -
+      topic: 3dx_device/stereo_cam_driver/right/image_rect_color
+      enabled: true
+      conversion_call: lb_convert_image
+      conversion_parameters:
+    -
+      topic: 3dx_device/stereo_cam_driver/point_cloud/cloud_registered
+      enabled: false
+      conversion_call: lb_convert_cloud
+      conversion_parameters:
+    -
+      topic: 3dx_device/stereo_cam_driver/depth/depth_registered
+      enabled: false
+      conversion_call: lb_convert_image
+      conversion_parameters:
+    -
+      service: nav_pos_query                                      # Service name relative to this node's parent namespace
+      request_args:                                               # List of service request args as keyword/value pairs
+        -
+          query_time: 0                                           # query_time = 0 indicates "most recent"
+      enabled: false
+      conversion_call: lb_to_text                                 # The totally generic conversion routine
+      conversion_parameters:
+    -
+      topic: classifier/bounding_boxes
+      enabled: false
+      conversion_call: lb_convert_detection_boxes
+      conversion_parameters:
+    -
+      topic: classifier/detection_image
+      enabled: false
+      conversion_call: lb_convert_image
+      conversion_parameters:
+
+hb:
+  enabled: true                                                   # Specifies whether HB will be attempted
+  data_source_folder: /home/numurus_user/data                     # Device filesystem path to the data folder for HB data offload
+  auto_data_offload: true                                         # Automatically offload data source folder on each HB connection
