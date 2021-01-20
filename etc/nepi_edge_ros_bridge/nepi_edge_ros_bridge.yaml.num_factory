@@ -15,59 +15,57 @@ lb:
 
   # The following is a list of ROS topics published on the device that are eligible for conversion to LB data products
   available_data_sources:
-    -
-      topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name relative to this node's parent namespace
+    - topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name relative to this node's parent namespace
       enabled: false                                              # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
-      conversion_parameters:                                      # List of parameter objects (python name=value keyword params) passed to conversion_call
-    -
-      topic: 3dx_device/stereo_cam_mgr/img_1/image_raw
+      #conversion_parameters:                                      # List of parameter objects (python name=value keyword params) passed to conversion_call
+
+    - topic: 3dx_device/stereo_cam_mgr/img_1/image_raw
       enabled: false
       conversion_call: lb_convert_image
-      conversion_parameters:
-    -
-      topic: 3dx_device/stereo_cam_mgr/img_alt/image_raw
+      #conversion_parameters:
+
+    - topic: 3dx_device/stereo_cam_mgr/img_alt/image_raw
       enabled: false
       conversion_call: lb_convert_image
-      conversion_parameters:
-    -
-      topic: 3dx_device/stereo_cam_driver/left/image_rect_color
+      #conversion_parameters:
+
+    - topic: 3dx_device/stereo_cam_driver/left/image_rect_color
       enabled: true
       conversion_call: lb_convert_image
-      conversion_parameters:
-    -
-      topic: 3dx_device/stereo_cam_driver/right/image_rect_color
+      #conversion_parameters:
+
+    - topic: 3dx_device/stereo_cam_driver/right/image_rect_color
       enabled: true
       conversion_call: lb_convert_image
-      conversion_parameters:
-    -
-      topic: 3dx_device/stereo_cam_driver/point_cloud/cloud_registered
+      #conversion_parameters:
+
+    - topic: 3dx_device/stereo_cam_driver/point_cloud/cloud_registered
       enabled: false
       conversion_call: lb_convert_cloud
-      conversion_parameters:
-    -
-      topic: 3dx_device/stereo_cam_driver/depth/depth_registered
+      #conversion_parameters:
+
+    - topic: 3dx_device/stereo_cam_driver/depth/depth_registered
       enabled: false
       conversion_call: lb_convert_image
-      conversion_parameters:
-    -
-      service: nav_pos_query                                      # Service name relative to this node's parent namespace
+      #conversion_parameters:
+
+    - service: nav_pos_query                                      # Service name relative to this node's parent namespace
       request_args:                                               # List of service request args as keyword/value pairs
-        -
-          query_time: 0                                           # query_time = 0 indicates "most recent"
+        - query_time: 0                                           # query_time = 0 indicates "most recent"
       enabled: false
       conversion_call: lb_to_text                                 # The totally generic conversion routine
-      conversion_parameters:
-    -
-      topic: classifier/bounding_boxes
+      #conversion_parameters:
+
+    - topic: classifier/bounding_boxes
       enabled: false
       conversion_call: lb_convert_detection_boxes
-      conversion_parameters:
-    -
-      topic: classifier/detection_image
+      #conversion_parameters:
+
+    - topic: classifier/detection_image
       enabled: false
       conversion_call: lb_convert_image
-      conversion_parameters:
+      #conversion_parameters:
 
 hb:
   enabled: true                                                   # Specifies whether HB will be attempted

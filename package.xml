@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>nepi_ros_bridge</name>
+  <name>nepi_edge_ros_bridge</name>
   <version>0.0.0</version>
   <description>The Numurus NEPI ROS Bridge</description>
 
@@ -49,6 +49,7 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <depend>num_sdk_msgs</depend>
+  <depend>num_sdk_base</depend>
   <depend>rospy</depend>
   <buildtool_depend>catkin</buildtool_depend>
   <exec_depend>message_runtime</exec_depend>

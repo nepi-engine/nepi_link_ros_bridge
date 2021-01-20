@@ -17,9 +17,11 @@ find_package(
     REQUIRED
     COMPONENTS
     message_generation
+    num_sdk_base
     num_sdk_msgs
     rospy
     std_msgs
+    sensor_msgs
 )
 
 ## Use the verbose version of make
@@ -76,11 +78,12 @@ find_package(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-     DEPENDENCIES
-     std_msgs  # Or other packages containing msgs
-     num_sdk_msgs
-)
+#generate_messages(
+#     DEPENDENCIES
+#     std_msgs  # Or other packages containing msgs
+#     sensor_msgs
+#     num_sdk_msgs
+#)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
