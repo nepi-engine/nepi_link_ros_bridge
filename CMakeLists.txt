@@ -182,6 +182,8 @@ catkin_package(
 
 catkin_install_python(PROGRAMS
   scripts/nepi_edge_ros_bridge.py
+  scripts/lb_convert_image.py
+  scripts/lb_ros_msg_to_yaml.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

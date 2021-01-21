@@ -1,6 +1,8 @@
 enabled: true                                                     # Top-level NEPI Edge device enabled/disabled
 auto_attempts_per_hour: 3                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
 nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
+nepi_log_storage_enabled: true                                    # True if logs should be stored, false otherwise
+nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on device filesystem to store NEPI Edge logs
 
 # TODO: Config param mapping support: lb config messages to specific parameter adjustments
 
@@ -15,54 +17,94 @@ lb:
 
   # The following is a list of ROS topics published on the device that are eligible for conversion to LB data products
   available_data_sources:
-    - topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name relative to this node's parent namespace
+    - topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: false                                              # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
-      #conversion_parameters:                                      # List of parameter objects (python name=value keyword params) passed to conversion_call
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
     - topic: 3dx_device/stereo_cam_mgr/img_1/image_raw
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 1
       enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:
 
     - topic: 3dx_device/stereo_cam_mgr/img_alt/image_raw
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 2
       enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:
 
     - topic: 3dx_device/stereo_cam_driver/left/image_rect_color
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 3
       enabled: true
       conversion_call: lb_convert_image
       #conversion_parameters:
 
     - topic: 3dx_device/stereo_cam_driver/right/image_rect_color
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 4
       enabled: true
       conversion_call: lb_convert_image
       #conversion_parameters:
 
     - topic: 3dx_device/stereo_cam_driver/point_cloud/cloud_registered
+      msg_mod: sensor_msgs.msg
+      msg_type: PointCloud2
+      snippet_type: pcd
+      snippet_id: 0
       enabled: false
       conversion_call: lb_convert_cloud
       #conversion_parameters:
 
     - topic: 3dx_device/stereo_cam_driver/depth/depth_registered
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: dep
+      snippet_id: 0
       enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - service: nav_pos_query                                      # Service name relative to this node's parent namespace
-      request_args:                                               # List of service request args as keyword/value pairs
-        - query_time: 0                                           # query_time = 0 indicates "most recent"
-      enabled: false
-      conversion_call: lb_to_text                                 # The totally generic conversion routine
+    - service: nav_pos_query                                      # Service name either absolute or relative to this node's parent namespace
+      service_mod: num_sdk_msgs.srv                               # Module that includes this service type
+      service_type: NavPosQuery                                   # ROS Service type for this service
+      #request_args:                                              # List of service request args as keyword/value pairs; leave out to use defaults
+      #  - query_time: 0                                          # query_time = 0 indicates "most recent"
+      snippet_type: nav                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> service response collected for LB data set
+      conversion_call: lb_ros_msg_to_yaml                         # The totally generic conversion routine
       #conversion_parameters:
 
     - topic: classifier/bounding_boxes
+      msg_mod: darknet_ros_msgs.msg
+      msg_type: BoundingBoxes
+      snippet_type: bbx
+      snippet_id: 0
       enabled: false
       conversion_call: lb_convert_detection_boxes
       #conversion_parameters:
 
     - topic: classifier/detection_image
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 5
       enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:

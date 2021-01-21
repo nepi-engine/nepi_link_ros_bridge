@@ -1,13 +1,23 @@
 #!/usr/bin/env python
 import threading
+from importlib import import_module
+from datetime import datetime
 
 import rospy
+from tf.transformations import euler_from_quaternion
 
 from std_msgs.msg import Bool, Empty, Float32
 from num_sdk_msgs.msg import StringArray
 from num_sdk_msgs.srv import NEPIStatusQuery, NEPIStatusQueryResponse
 
+# Following is used for 3DX-specific NEPI LB Status creation -- remove when that
+# functionality is made generic
+from num_sdk_msgs.srv import NavPosQuery, NavPosQueryRequest, NavPosQueryResponse
+from num_sdk_msgs.msg import SystemStatus
+
 from num_sdk_base.save_cfg_if import SaveCfgIF
+
+from nepi_edge_sdk import *
 
 class NEPIEdgeRosBridge:
     NODE_NAME = "nepi_edge_ros_bridge"
@@ -24,8 +34,10 @@ class NEPIEdgeRosBridge:
         # Ensure this only runs once at a time -- this lock is held through the entire execution of nepi-bot
         #if self.nepi_bot_lock.acquire(blocking=False) is True: # Python 3
         if self.nepi_bot_lock.acquire(False) is True:
+            rospy.logwarn("TODO: run nepi-bot with proper env. vars")
             # At completion, read the status file into class members
             # For now, we just hard-code it
+            rospy.logwarn("TODO: parse NEPIBot Status")
             self.lb_last_connection_time = rospy.get_rostime()
             self.lb_do_msg_count += 4 # Just a canned change
             self.lb_dt_msg_count += 1 # Just a canned change
@@ -33,24 +45,184 @@ class NEPIEdgeRosBridge:
             self.hb_do_transfered_mb += 25
             self.hb_dt_transfered_mb += 10
 
+            rospy.logwarn("TODO: Move nepi-bot comms and status log files if so-configured")
+
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
 
         else: # Unable to acquire
             rospy.logwarn("Unable to run nepi-bot because it is already running in another thread")
 
-    def createLBDataSet(self, timer):
-        # TODO
-        rospy.logwarn("nepi_ros_bridge.createLBDataSet() -- TODO")
+    def getAndConvertDataMessage(self, timeout,
+                                 topic, msg_type, msg_mod,
+                                 snippet_type, snippet_id,
+                                 conversion_call,
+                                 is_service_response,
+                                 service_req_kwargs=None,
+                                 conversion_parameters=None,):
+        # Append the root namespace if necessary, i.e., if the supplied topic name is a relative namespace
+        fully_qualified_topic = topic
+        if topic[0] != '/': # Relative name
+            fully_qualified_topic = rospy.get_namespace() + topic
 
-        # First, iterate through the available_data_topics (param server) to find those that are enabled
-        # For each enabled topic, subscribe. The topic callback should look up the conversion function
-        # and output the converted file along with generating the metadata (leveraging nepi-edge-sdk)
+        try:
+            mod = import_module(msg_mod)
+            msg_type_object = getattr(mod, msg_type)
+            if not is_service_response:
+                msg = rospy.wait_for_message(fully_qualified_topic, msg_type_object, timeout)
+            else:
+                # Calling services is a bit more involved
+                # Create the service and service request objects
+                service_object = getattr(mod, msg_type)
+                service_req_object = getattr(mod, msg_type + 'Request')
 
-        # Then in this method, create the status message -- for now this will be 3DX-hardcoded, but eventually will be based on
+                # Construct the service request -- provide keyword args if any were supplied
+                service_request = None
+                if service_req_kwargs is not None:
+                    service_request = service_req_object(service_req_kwargs)
+                else:
+                    service_request = service_req_object()
+
+                # Create the proxy and call it with the request
+                service_query = rospy.ServiceProxy(fully_qualified_topic, service_object)
+                msg = service_query(service_request)
+
+        except rospy.ROSException:
+            rospy.logwarn('Timeout while waiting for ' + topic + ' for LB data')
+            return
+        except AttributeError:
+            rospy.logwarn('Message type ' + msg_type + ' not in package ' + msg_mod)
+            return
+        except ImportError:
+            rospy.logwarn('No module ' + msg_mod + '.msg')
+            return
+
+        # Now import and call the conversion routine
+        try:
+            # TODO: Do we need a more flexible approach than requiring each conversion call
+            # comes as a function in a module (.py file) by that same name?
+            mod = import_module(conversion_call)
+            conversion_function = getattr(mod, conversion_call)
+        except ImportError:
+            rospy.logwarn('Conversion module ' + conversion_call + ' missing or invalid')
+            return
+        except AttributeError:
+            rospy.logwarn('No conversion function ' + conversion_call + ' in module ' + conversion_call)
+            return
+
+        output_file_base = './' + topic.replace('/', '.')
+        conversion_args = {'output_file_basename': output_file_base}
+        if conversion_parameters is not None:
+            conversion_args.update(conversion_parameters)
+        data_filename, conversion_quality = conversion_function(msg, kwargs=conversion_args)
+
+        # TODO: Should we gather nav/pose info for the data snippet here?
+
+        # Next create the data snippet object
+        snippet = NEPIEdgeLBDataSnippet(snippet_type, snippet_id)
+        # And set the file
+        if data_filename is not None:
+            snippet.setOptionalFields(data_file = data_filename, delete_data_file_after_export = True)
+
+        # Finally, under lock protection add this to the list of data snippets
+        with self.nepi_data_snippets_lock:
+            self.latest_nepi_data_snippets.append(snippet)
+
+    def createNEPIStatus(self, timeout_s):
+        start_time_ros = rospy.get_rostime()
+        timeout_ros_remaining = rospy.Duration.from_sec(timeout_s)
+
+        # Ensure we always have a bare-minimum nepi-status after this call
+        self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().replace(microsecond=0).isoformat())
+
+        # Populate some of the optional fields. For now this will be 3DX-hardcoded, but eventually will be based on
         # a parameter mapping defined in the config file
+        nav_pos_req = NavPosQueryRequest() # Default constructor will set the query_time = {0,0} as we want
+        nav_pos_query = rospy.ServiceProxy('nav_pos_query', NavPosQuery)
+        nav_pos_resp = nav_pos_query(nav_pos_req)
 
-        # Then dump status and all metadata to the LB folder (via nepi-edge-sdk)
+        # Compute some special formats from the response
+        navsat_fix_time_posix = nav_pos_resp.nav_pos.fix.header.stamp.secs + (nav_pos_resp.nav_pos.fix.header.stamp.nsecs / 1000000000.0)
+        fix_time_rfc3339 = datetime.fromtimestamp(navsat_fix_time_posix).isoformat()
+        heading_ref_from_bool = NEPI_EDGE_HEADING_REF_TRUE_NORTH if nav_pos_resp.nav_pos.heading_true_north is True else NEPI_EDGE_HEADING_REF_MAG_NORTH
+        quaternion_orientation = (nav_pos_resp.nav_pos.orientation.x, nav_pos_resp.nav_pos.orientation.y,
+                                  nav_pos_resp.nav_pos.orientation.z, nav_pos_resp.nav_pos.orientation.w)
+        euler_orientation = euler_from_quaternion(quaternion_orientation)
+        self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
+                                                  latitude_deg = nav_pos_resp.nav_pos.fix.latitude, longitude_deg = nav_pos_resp.nav_pos.fix.longitude,
+                                                  heading_ref = heading_ref_from_bool, heading_deg = nav_pos_resp.nav_pos.heading,
+                                                  roll_angle_deg = euler_orientation[0], pitch_angle_deg = euler_orientation[1])
+
+        # Update the timeout period
+        elapsed_ros = rospy.get_rostime() - start_time_ros
+        timeout_ros_remaining -= elapsed_ros
+        if (timeout_ros_remaining.to_sec() < 0.0):
+            rospy.logwarn("Timeout during nav_pos_status_query")
+            return
+
+        # Temperature comes from the status message, which we must wait for
+        status_topic = rospy.get_namespace() + 'system_status'
+        try:
+            sys_status_msg = rospy.wait_for_message(status_topic, SystemStatus, timeout_ros_remaining.to_sec())
+            self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
+        except rospy.ROSException:
+            rospy.logwarn("Timeout while waiting for system_status")
+            return #
+
+    def createLBDataSet(self, timer):
+        # First, launch the status message thread
+        wait_for_message_threads = {}
+        max_data_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
+
+        # New data set, so clear status and snippets
+        self.latest_nepi_status = None
+        self.latest_nepi_data_snippets[:] = [] # Python 2.7 compatible
+
+        wait_for_message_threads['nepi_status'] = threading.Thread(target=self.createNEPIStatus, kwargs={'timeout_s': max_data_wait_time_s})
+        wait_for_message_threads['nepi_status'].start()
+
+        # Now, iterate through the available_data_sources (param server) to find those that are enabled
+        available_data_sources = rospy.get_param("~lb/available_data_sources", None)
+        for entry in available_data_sources:
+            wait_thread_args = {'timeout': max_data_wait_time_s,
+                                'snippet_type': entry['snippet_type'],
+                                'snippet_id': entry['snippet_id'],
+                                'conversion_call': entry['conversion_call']}
+            if 'conversion_parameters' in entry:
+                wait_thread_args['conversion_parameters'] = entry['conversion_parameters']
+            # The rest of the args depend on whether this is a topic or service
+            ros_id = None
+            if 'topic' in entry and entry['enabled'] is True:
+                ros_id = entry['topic']
+                wait_thread_args['topic'] = ros_id
+                wait_thread_args['msg_type'] = entry['msg_type']
+                wait_thread_args['msg_mod'] = entry['msg_mod']
+                wait_thread_args['is_service_response'] = False
+
+            elif 'service' in entry and entry['enabled'] is True:
+                ros_id = entry['service']
+                wait_thread_args['topic'] = ros_id
+                wait_thread_args['msg_type'] = entry['service_type']
+                wait_thread_args['msg_mod'] = entry['service_mod']
+                wait_thread_args['is_service_response'] = True
+                if 'request_args' in entry:
+                    wait_thread_args['service_req_kwargs'] = entry['request_args']
+
+            else: # Either not enabled or ill-formed entry (missing topic or service)
+                continue
+
+            wait_for_message_threads[ros_id] = threading.Thread(target=self.getAndConvertDataMessage, kwargs=wait_thread_args)
+            wait_for_message_threads[ros_id].start()
+
+        # Now wait for all the child threads to terminate
+        for t in wait_for_message_threads:
+            wait_for_message_threads[t].join()
+
+        # And export the status+data
+        if self.latest_nepi_status is not None:
+            self.latest_nepi_status.export(self.latest_nepi_data_snippets)
+        else:
+            rospy.logwarn('NEPI LB Status message was not properly constructed')
 
     def updateAutoConnectionScheduler(self, enabled, rate_per_hour):
         if (enabled is True) and (rate_per_hour > 0.0):
@@ -129,6 +301,10 @@ class NEPIEdgeRosBridge:
             # Update the scheduler
             enabled = rospy.get_param('~enabled', False)
             self.updateAutoConnectionScheduler(enabled, new_auto_attempts_per_hour)
+
+    def enableNEPIBotLogStorage(self, msg):
+        # Nothing to do here but update the param server
+        rospy.set_param('~nepi_log_storage_enabled', msg.data)
 
     def enableLB(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
@@ -249,6 +425,7 @@ class NEPIEdgeRosBridge:
         rospy.Subscriber('~enable', Bool, self.enableNEPIEdge)
         rospy.Subscriber('~connect_now', Empty, self.connectNow)
         rospy.Subscriber('~set_auto_attempts_per_hour', Float32, self.setAutoAttemptsPerHour)
+        rospy.Subscriber('~enable_nepi_log_storage', Bool, self.enableNEPIBotLogStorage)
         rospy.Subscriber('~lb/enable', Bool, self.enableLB)
         rospy.Subscriber('~lb/set_data_sets_per_hour', Float32, self.setLBDataSetsPerHour)
         rospy.Subscriber('~lb/select_data_sources', StringArray, self.selectLBDataSources)
@@ -258,6 +435,14 @@ class NEPIEdgeRosBridge:
 
         # Advertise services
         rospy.Service('~nepi_status_query', NEPIStatusQuery, self.provideNEPIStatus)
+
+        # Create and initialize nepi-edge-sdk object
+        self.nepi_sdk = NEPIEdgeSDK()
+        nepi_bot_path = rospy.get_param('~nepi_bot_root_folder')
+        self.nepi_sdk.setBotBaseFilePath(nepi_bot_path)
+        self.latest_nepi_status = None
+        self.latest_nepi_data_snippets = []
+        self.nepi_data_snippets_lock = threading.Lock()
 
         rospy.spin()
 
