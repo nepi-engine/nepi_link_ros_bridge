@@ -2,6 +2,9 @@
 import threading
 from importlib import import_module
 from datetime import datetime
+import os
+from shutil import copyfile
+import json
 
 import rospy
 from tf.transformations import euler_from_quaternion
@@ -26,26 +29,67 @@ class NEPIEdgeRosBridge:
         self.runNEPIBot()
 
     def runNEPIBot(self):
-        # TODO
-        rospy.logwarn("nepi_ros_bridge.runNEPIBot() -- TODO")
-
         # Query param server for LB and HB params and launch nepi-bot
-
         # Ensure this only runs once at a time -- this lock is held through the entire execution of nepi-bot
         #if self.nepi_bot_lock.acquire(blocking=False) is True: # Python 3
         if self.nepi_bot_lock.acquire(False) is True:
-            rospy.logwarn("TODO: run nepi-bot with proper env. vars")
-            # At completion, read the status file into class members
-            # For now, we just hard-code it
-            rospy.logwarn("TODO: parse NEPIBot Status")
-            self.lb_last_connection_time = rospy.get_rostime()
-            self.lb_do_msg_count += 4 # Just a canned change
-            self.lb_dt_msg_count += 1 # Just a canned change
-            self.hb_last_connection_time = rospy.get_rostime()
-            self.hb_do_transfered_mb += 25
-            self.hb_dt_transfered_mb += 10
+            # First, setup the HB data offload if so configured
+            do_data_offload = rospy.get_param('~hb/auto_data_offload', False)
+            if do_data_offload is True:
+                data_folder = rospy.get_param('~hb/data_source_folder')
+                self.nepi_sdk.linkHBDataFolder(data_folder)
 
-            rospy.logwarn("TODO: Move nepi-bot comms and status log files if so-configured")
+            # Get the current timestamp for use as a directory name later
+            start_time_subdir_name = datetime.utcnow().replace(microsecond=0).isoformat().replace(':', '')
+            rospy.logwarn("TODO: run nepi-bot with proper env. vars")
+
+            # At completion, import the status file into class members
+            exec_status = NEPIEdgeExecStatus()
+            (lb_statuses, hb_statuses) = exec_status.importStatus()
+
+            # Update fields for any new connections
+            for lb_stat in lb_statuses:
+                # This logic will pick up the _last_ successful LB comms link in the list.
+                # There should be at most one of these, but that assumption isn't checked here
+                if lb_stat['comms_status'] == NEPI_EDGE_COMMS_STATUS_SUCCESS:
+                    # Timestamp conversion
+                    start_time_rfc3339 = lb_stat['start_time_rfc3339']
+                    #start_time_unix = datetime.strptime(start_time_rfc3339, '%Y-%m-%dT%H:%M:%S.%f').timestamp() # Python 3
+                    start_time_unix = (datetime.strptime(start_time_rfc3339, '%Y-%m-%dT%H:%M:%S.%f') - datetime(1970, 1, 1)).total_seconds()
+                    self.lb_last_connection_time = rospy.Time(start_time_unix)
+                    self.lb_do_msg_count = lb_stat['msgs_sent']
+                    self.lb_dt_msg_count = lb_stat['msgs_rcvd']
+
+            for hb_stat in hb_statuses:
+                # There could be multiple successful HB sessions in here and we report
+                # one timestamp, so we need a policy -- it is 'report the last success timestamp
+                # in the list'
+                if hb_stat['comms_status'] == NEPI_EDGE_COMMS_STATUS_SUCCESS:
+                    start_time_rfc3339 = hb_stat['start_time_rfc3339']
+                    #start_time_unix = datetime.strptime(start_time_rfc3339, '%Y-%m-%dT%H:%M:%S.%f').timestamp() # Python 3
+                    start_time_unix = (datetime.strptime(start_time_rfc3339, '%Y-%m-%dT%H:%M:%S.%f') - datetime(1970, 1, 1)).total_seconds()
+                    self.hb_last_connection_time = rospy.Time(start_time_unix)
+
+                    if hb_stat['direction'] == NEPI_EDGE_HB_DIRECTION_DO:
+                        self.hb_do_transfered_mb = float(hb_stat['datasent_kB']) / 1000.0
+                    elif hb_stat['direction'] == NEPI_EDGE_HB_DIRECTION_DT:
+                        self.hb_dt_transfered_mb = float(hb_stat['datareceived_kB']) / 1000.0
+
+            # Copy all the log files if so configured
+            if rospy.get_param('~nepi_log_storage_enabled') is True:
+                nepi_log_storage_folder = os.path.join(rospy.get_param('~nepi_log_storage_folder'), start_time_subdir_name)
+                if not os.path.exists(nepi_log_storage_folder):
+                    os.makedirs(nepi_log_storage_folder)
+
+                log_src_folder = os.path.join(rospy.get_param('~nepi_bot_root_folder'), 'log')
+                src_files = os.listdir(log_src_folder)
+                for f in src_files:
+                    full_file_name = os.path.join(log_src_folder, f)
+                    if (os.path.isfile(full_file_name)):
+                        # Copy the log file and then delete it from its source -- this is the default
+                        # behavior under nepi_log_storage_enabled
+                        copyfile(full_file_name, os.path.join(nepi_log_storage_folder,f))
+                        os.remove(full_file_name)
 
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
@@ -133,7 +177,7 @@ class NEPIEdgeRosBridge:
         timeout_ros_remaining = rospy.Duration.from_sec(timeout_s)
 
         # Ensure we always have a bare-minimum nepi-status after this call
-        self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().replace(microsecond=0).isoformat())
+        self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().isoformat())
 
         # Populate some of the optional fields. For now this will be 3DX-hardcoded, but eventually will be based on
         # a parameter mapping defined in the config file
@@ -251,11 +295,13 @@ class NEPIEdgeRosBridge:
         # Otherwise, the time is already shut down
 
     def extractFieldsFromNEPIBotConfig(self):
-        # TODO
         # Query param server for nepi-bot root folder and use that to determine nepi-bot config file
         # Open config file (read-only) and find the fields of interest
-
-        return '9999999999', 'dummy_device', ['lb_iridium', 'lb_ip']
+        nepi_bot_root_folder = rospy.get_param('~nepi_bot_root_folder')
+        nepi_bot_cfg_file = os.path.join(nepi_bot_root_folder, 'cfg/bot/config.json')
+        with open(nepi_bot_cfg_file, 'r') as f:
+            cfg_dict = json.load(f)
+        return cfg_dict['alias'], cfg_dict['lb_conn_order']
 
     def updateFromParamServer(self):
         # Most parameters are handled on an as-needed basis, so here we only
@@ -373,7 +419,8 @@ class NEPIEdgeRosBridge:
 
         # Some of the fields come directly from the nepi-bot config file. We parse it anew each time
         # because it can change via NEPI standard config or SOFTWARE channels
-        resp.status.nuid, resp.status.alias, resp.status.lb_comms_types = self.extractFieldsFromNEPIBotConfig()
+        resp.status.nuid = self.nepi_sdk.getBotNUID()
+        resp.status.alias, resp.status.lb_comms_types = self.extractFieldsFromNEPIBotConfig()
 
         # Many fields come from the param server
         resp.status.enabled = rospy.get_param("~enabled", False)
@@ -382,10 +429,12 @@ class NEPIEdgeRosBridge:
         for entry in rospy.get_param("~lb/available_data_sources", None):
             if 'topic' in entry:
                 resp.status.lb_available_data_sources.append(entry['topic'])
+                if entry['enabled'] is True:
+                    resp.status.lb_selected_data_sources.append(entry['topic'])
             elif 'service' in entry:
                 resp.status.lb_available_data_sources.append(entry['service'])
-            if entry['enabled'] is True:
-                resp.status.lb_selected_data_sources.append(entry['topic'])
+                if entry['enabled'] is True:
+                    resp.status.lb_selected_data_sources.append(entry['service'])
         resp.status.lb_max_data_queue_size_mb = rospy.get_param("~lb/max_data_queue_size_mb", 20)
         resp.status.hb_enabled = rospy.get_param("~hb/enabled", False)
         resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload", False)
