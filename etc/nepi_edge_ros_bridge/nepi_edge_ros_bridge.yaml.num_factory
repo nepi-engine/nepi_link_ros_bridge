@@ -1,7 +1,7 @@
 enabled: true                                                     # Top-level NEPI Edge device enabled/disabled
 auto_attempts_per_hour: 3                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
 nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
-nepi_log_storage_enabled: true                                    # True if logs should be stored, false otherwise
+nepi_log_storage_enabled: true                                    # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
 nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on device filesystem to store NEPI Edge logs
 
 # TODO: Config param mapping support: lb config messages to specific parameter adjustments
