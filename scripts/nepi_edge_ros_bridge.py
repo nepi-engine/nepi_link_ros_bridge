@@ -47,10 +47,45 @@ class NEPIEdgeRosBridge:
             if do_data_offload is True:
                 data_folder = rospy.get_param('~hb/data_source_folder')
                 self.nepi_sdk.linkHBDataFolder(data_folder)
+            else:
+                self.nepi_sdk.unlinkHBDataFolder() # No harm in doing this unnecessarily
 
             # Get the current timestamp for use as a directory name later
             start_time_subdir_name = datetime.utcnow().replace(microsecond=0).isoformat().replace(':', '')
-            rospy.logwarn("TODO: run nepi-bot with proper env. vars")
+
+            # Run the bot and wait for it to complete
+            lb_enabled = rospy.get_param('~lb/enabled')
+            lb_timeout_s = rospy.get_param('~lb/session_max_time_s')
+            hb_enabled = rospy.get_param('~hb/enabled')
+            hb_timeout_s = rospy.get_param('~hb/session_max_time_s')
+            rospy.loginfo('Starting NEPI-BOT at ' + start_time_subdir_name +
+                          '\n\tRun LB = ' + str(lb_enabled) + ' (' + str(lb_timeout_s) + 's timeout)' +
+                          '\n\tRun HB = ' + str(lb_enabled) + ' (' + str(hb_timeout_s) + 's timeout)')
+            self.nepi_sdk.startBot(lb_enabled, lb_timeout_s, hb_enabled, hb_timeout_s)
+
+            # Set up some timing control
+            bot_start_time = rospy.get_rostime()
+            bot_max_duration = rospy.Duration.from_sec(max(lb_timeout_s, hb_timeout_s) + 1.0)
+            total_failure_duration = bot_max_duration + rospy.Duration.from_sec(20.0)
+            hard_kill_duration = bot_max_duration + rospy.Duration.from_sec(10.0)
+
+            # Now wait for completion -- monitor timeout in case something fails in SDK
+            rospy.sleep(0.5) # To let nepi-bot start up completely
+            while (self.nepi_sdk.checkBotRunning() is True):
+                bot_duration = rospy.get_rostime() - bot_start_time
+                if (bot_duration > total_failure_duration):
+                    rospy.logerr_throttle(10, 'Cannot kill NEPI-Bot process -- unable to continue')
+                elif (bot_duration > hard_kill_duration):
+                    rospy.logerr('Attempting to kill NEPI-Bot because max duration was greatly exceeded')
+                    self.nepi_sdk.stopBot(force_kill=True)
+                elif (bot_duration > bot_max_duration):
+                    rospy.logwarn('Signaling NEPI-Bot to shut down because max duration was exceeded')
+                    self.nepi_sdk.stopBot(force_kill=False)
+
+                rospy.sleep(2.0)
+
+            bot_run_duration = rospy.get_rostime() - bot_start_time
+            rospy.loginfo('NEPI-Bot Execution Complete (' + str(bot_run_duration.to_sec()) + ' secs)')
 
             # At completion, import the status file into class members
             exec_status = NEPIEdgeExecStatus()
