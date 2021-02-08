@@ -22,6 +22,15 @@ from num_sdk_base.save_cfg_if import SaveCfgIF
 
 from nepi_edge_sdk import *
 
+def getDirectorySize(start_path):
+    total_size = 0
+    for dpath, dnames, fnames in os.walk(start_path):
+        for f in fnames:
+            fp = os.path.join(dpath, f)
+            # Don't skip symbolic links -- follow them
+            total_size += os.path.getsize(fp)
+    return total_size
+
 class NEPIEdgeRosBridge:
     NODE_NAME = "nepi_edge_ros_bridge"
 
@@ -402,10 +411,6 @@ class NEPIEdgeRosBridge:
         # Now write back the updated sources
         rospy.set_param("~lb/available_data_sources", available_sources)
 
-    def setLBMaxDataQueueSize(self, msg):
-        # Nothing to do here but update the param server
-        rospy.set_param('~lb/max_data_queue_size_mb', msg.data)
-
     def enableHB(self, msg):
         # Nothing to do here but update the param server
         rospy.set_param('~hb/enabled', msg.data)
@@ -435,7 +440,6 @@ class NEPIEdgeRosBridge:
                 resp.status.lb_available_data_sources.append(entry['service'])
                 if entry['enabled'] is True:
                     resp.status.lb_selected_data_sources.append(entry['service'])
-        resp.status.lb_max_data_queue_size_mb = rospy.get_param("~lb/max_data_queue_size_mb", 20)
         resp.status.hb_enabled = rospy.get_param("~hb/enabled", False)
         resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload", False)
 
@@ -446,6 +450,17 @@ class NEPIEdgeRosBridge:
         resp.status.hb_last_connection_time = self.hb_last_connection_time
         resp.status.hb_do_transfered_mb = self.hb_do_transfered_mb
         resp.status.hb_dt_transfered_mb = self.hb_dt_transfered_mb
+
+        # Some fields we simply calculate
+        # TODO: Should these fs query capabilities be moved to SDK?
+        nepi_bot_folder = rospy.get_param('~nepi_bot_root_folder')
+        resp.status.lb_data_queue_size_KB = getDirectorySize(os.path.join(nepi_bot_folder, 'lb/data')) / 1000.0
+
+        if rospy.get_param('~hb/auto_data_offload') is True:
+            resp.status.hb_data_queue_size_MB = getDirectorySize(rospy.get_param('~hb/data_source_folder')) / 1000000.0
+        else:
+            resp.status.hb_data_queue_size_MB = 0
+
 
         return resp
 
@@ -478,12 +493,11 @@ class NEPIEdgeRosBridge:
         rospy.Subscriber('~lb/enable', Bool, self.enableLB)
         rospy.Subscriber('~lb/set_data_sets_per_hour', Float32, self.setLBDataSetsPerHour)
         rospy.Subscriber('~lb/select_data_sources', StringArray, self.selectLBDataSources)
-        rospy.Subscriber('~lb/set_max_data_queue_size_mb', Float32, self.setLBMaxDataQueueSize)
         rospy.Subscriber('~hb/enable', Bool, self.enableHB)
         rospy.Subscriber('~hb/set_auto_data_offloading', Bool, self.setHBAutoDataOffloading)
 
         # Advertise services
-        rospy.Service('~nepi_status_query', NEPIStatusQuery, self.provideNEPIStatus)
+        rospy.Service('nepi_status_query', NEPIStatusQuery, self.provideNEPIStatus)
 
         # Create and initialize nepi-edge-sdk object
         self.nepi_sdk = NEPIEdgeSDK()
