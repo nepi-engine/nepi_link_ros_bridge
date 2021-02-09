@@ -35,7 +35,18 @@ class NEPIEdgeRosBridge:
     NODE_NAME = "nepi_edge_ros_bridge"
 
     def autoConnectTimerExpired(self, timer):
+        rospy.loginfo('Scheduled auto-connect session starting')
+
+        # If LB is enabled, we are required (by NEPI Policy) to create a brand-new status message
+        lb_enabled = rospy.get_param('~lb/enabled')
+        if lb_enabled is True:
+            rospy.loginfo('Gathering an updated LB status for the upcoming LB session')
+            max_status_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
+            self.createNEPIStatus(timeout_s=max_status_wait_time_s, export_on_complete=True)
+
+        # Start BOT and follow-up processing
         self.runNEPIBot()
+        # TODO: Anything else?
 
     def runNEPIBot(self):
         # Query param server for LB and HB params and launch nepi-bot
@@ -87,7 +98,8 @@ class NEPIEdgeRosBridge:
             bot_run_duration = rospy.get_rostime() - bot_start_time
             rospy.loginfo('NEPI-Bot Execution Complete (' + str(bot_run_duration.to_sec()) + ' secs)')
 
-            # At completion, import the status file into class members
+            # At completion, import the status file into class members -- do this while continuing to hold the lock
+            # as nepi-bot would delete the status files if it happened to run again
             exec_status = NEPIEdgeExecStatus()
             (lb_statuses, hb_statuses) = exec_status.importStatus()
 
@@ -119,7 +131,8 @@ class NEPIEdgeRosBridge:
                     elif hb_stat['direction'] == NEPI_EDGE_HB_DIRECTION_DT:
                         self.hb_dt_transfered_mb = float(hb_stat['datareceived_kB']) / 1000.0
 
-            # Copy all the log files if so configured
+            # Copy all the log files if so configured -- do this while continuing to hold the lock
+            # as nepi-bot might delete the log files if it happened to run again
             if rospy.get_param('~nepi_log_storage_enabled') is True:
                 nepi_log_storage_folder = os.path.join(rospy.get_param('~nepi_log_storage_folder'), start_time_subdir_name)
                 if not os.path.exists(nepi_log_storage_folder):
@@ -204,7 +217,7 @@ class NEPIEdgeRosBridge:
             conversion_args.update(conversion_parameters)
         data_filename, conversion_quality = conversion_function(msg, kwargs=conversion_args)
 
-        # TODO: Should we gather nav/pose info for the data snippet here?
+        # TODO: Gather updated nav/pose info for the data snippet here
 
         # Next create the data snippet object
         snippet = NEPIEdgeLBDataSnippet(snippet_type, snippet_id)
@@ -216,12 +229,9 @@ class NEPIEdgeRosBridge:
         with self.nepi_data_snippets_lock:
             self.latest_nepi_data_snippets.append(snippet)
 
-    def createNEPIStatus(self, timeout_s):
+    def createNEPIStatus(self, timeout_s, export_on_complete = False):
         start_time_ros = rospy.get_rostime()
         timeout_ros_remaining = rospy.Duration.from_sec(timeout_s)
-
-        # Ensure we always have a bare-minimum nepi-status after this call
-        self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().isoformat())
 
         # Populate some of the optional fields. For now this will be 3DX-hardcoded, but eventually will be based on
         # a parameter mapping defined in the config file
@@ -236,10 +246,6 @@ class NEPIEdgeRosBridge:
         quaternion_orientation = (nav_pos_resp.nav_pos.orientation.x, nav_pos_resp.nav_pos.orientation.y,
                                   nav_pos_resp.nav_pos.orientation.z, nav_pos_resp.nav_pos.orientation.w)
         euler_orientation = euler_from_quaternion(quaternion_orientation)
-        self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
-                                                  latitude_deg = nav_pos_resp.nav_pos.fix.latitude, longitude_deg = nav_pos_resp.nav_pos.fix.longitude,
-                                                  heading_ref = heading_ref_from_bool, heading_deg = nav_pos_resp.nav_pos.heading,
-                                                  roll_angle_deg = euler_orientation[0], pitch_angle_deg = euler_orientation[1])
 
         # Update the timeout period
         elapsed_ros = rospy.get_rostime() - start_time_ros
@@ -252,20 +258,38 @@ class NEPIEdgeRosBridge:
         status_topic = rospy.get_namespace() + 'system_status'
         try:
             sys_status_msg = rospy.wait_for_message(status_topic, SystemStatus, timeout_ros_remaining.to_sec())
-            self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
         except rospy.ROSException:
             rospy.logwarn("Timeout while waiting for system_status")
-            return #
+            return
 
-    def createLBDataSet(self, timer):
+        with self.latest_nepi_status_lock:
+            self.latest_nepi_status = None # Clear it
+            # Ensure we always have a bare-minimum nepi-status after this call
+            self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().isoformat())
+            self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
+                                                      latitude_deg = nav_pos_resp.nav_pos.fix.latitude, longitude_deg = nav_pos_resp.nav_pos.fix.longitude,
+                                                      heading_ref = heading_ref_from_bool, heading_deg = nav_pos_resp.nav_pos.heading,
+                                                      roll_angle_deg = euler_orientation[0], pitch_angle_deg = euler_orientation[1])
+            self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
+            if export_on_complete is True:
+                empty_snippets = []
+                self.latest_nepi_status.export(empty_snippets)
+
+    def lbDataCollectionTimerExpired(self, timer):
+        rospy.loginfo('Scheduled LB data collection session starting')
+        self.createLBDataSet()
+
+    def createLBDataSet(self):
+        rospy.loginfo('Creating LB Data set ')
         # First, launch the status message thread
         wait_for_message_threads = {}
         max_data_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
 
-        # New data set, so clear status and snippets
-        self.latest_nepi_status = None
-        self.latest_nepi_data_snippets[:] = [] # Python 2.7 compatible
+        # New data set, so clear snippets
+        with self.nepi_data_snippets_lock:
+            self.latest_nepi_data_snippets[:] = [] # Python 2.7 compatible
 
+        # Start a status query in a separate thread
         wait_for_message_threads['nepi_status'] = threading.Thread(target=self.createNEPIStatus, kwargs={'timeout_s': max_data_wait_time_s})
         wait_for_message_threads['nepi_status'].start()
 
@@ -314,7 +338,7 @@ class NEPIEdgeRosBridge:
 
     def updateAutoConnectionScheduler(self, enabled, rate_per_hour):
         if (enabled is True) and (rate_per_hour > 0.0):
-            rospy.loginfo("Enabling auto connect scheduler")
+            rospy.loginfo("Enabling auto connect scheduler (" + str(rate_per_hour) + "x/hr)")
             duration_s = 3600.0 / rate_per_hour
             if self.auto_connect_timer is not None:
                 self.auto_connect_timer.shutdown()
@@ -327,7 +351,7 @@ class NEPIEdgeRosBridge:
 
     def updateDataCollectionScheduler(self, enabled, rate_per_hour):
         if (enabled is True) and (rate_per_hour > 0.0):
-            rospy.loginfo("Enabling LB data collection scheduler")
+            rospy.loginfo("Enabling LB data collection scheduler (" + str(rate_per_hour) + "x/hr)")
             duration_s = 3600.0 / rate_per_hour
             if self.lb_data_collection_timer is not None:
                 self.lb_data_collection_timer.shutdown()
@@ -500,8 +524,8 @@ class NEPIEdgeRosBridge:
         return resp
 
     def __init__(self):
-        rospy.loginfo("Starting " + self.NODE_NAME + "node")
         rospy.init_node(self.NODE_NAME)
+        rospy.loginfo("Starting " + self.NODE_NAME + " node")
 
         self.save_cfg_if = SaveCfgIF(updateParamsCallback=None, paramsModifiedCallback=self.updateFromParamServer)
 
@@ -539,6 +563,7 @@ class NEPIEdgeRosBridge:
         nepi_bot_path = rospy.get_param('~nepi_bot_root_folder')
         self.nepi_sdk.setBotBaseFilePath(nepi_bot_path)
         self.latest_nepi_status = None
+        self.latest_nepi_status_lock = threading.Lock()
         self.latest_nepi_data_snippets = []
         self.nepi_data_snippets_lock = threading.Lock()
 
