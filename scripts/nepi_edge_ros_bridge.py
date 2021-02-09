@@ -43,7 +43,7 @@ class NEPIEdgeRosBridge:
         #if self.nepi_bot_lock.acquire(blocking=False) is True: # Python 3
         if self.nepi_bot_lock.acquire(False) is True:
             # First, setup the HB data offload if so configured
-            do_data_offload = rospy.get_param('~hb/auto_data_offload', False)
+            do_data_offload = rospy.get_param('~hb/auto_data_offload')
             if do_data_offload is True:
                 data_folder = rospy.get_param('~hb/data_source_folder')
                 self.nepi_sdk.linkHBDataFolder(data_folder)
@@ -351,19 +351,19 @@ class NEPIEdgeRosBridge:
         # Most parameters are handled on an as-needed basis, so here we only
         # deal with those that control top-level behavior
 
-        enabled = rospy.get_param("~enabled", False)
-        auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour", 0.0)
+        enabled = rospy.get_param("~enabled")
+        auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour")
         self.updateAutoConnectionScheduler(enabled, auto_attempts_per_hour)
 
         # Only apply the data_sets_per_hour if top-level enabled is true
-        lb_enabled = rospy.get_param("~lb/enabled", False)
-        lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", 0)
+        lb_enabled = rospy.get_param("~lb/enabled")
+        lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour")
         run_data_collection = enabled and lb_enabled
         self.updateDataCollectionScheduler(run_data_collection, lb_data_sets_per_hour)
 
     def enableNEPIEdge(self, msg):
         # Check if this is truly an update -- if not, don't do anything
-        prev_enabled = rospy.get_param('~enabled', False)
+        prev_enabled = rospy.get_param('~enabled')
         new_enabled = msg.data
         if prev_enabled != new_enabled:
             rospy.logwarn("Setting NEPI Edge enabled to " + str(new_enabled))
@@ -374,7 +374,7 @@ class NEPIEdgeRosBridge:
             self.updateFromParamServer()
 
     def connectNow(self, msg):
-        enabled = rospy.get_param("~enabled", False)
+        enabled = rospy.get_param("~enabled")
         if enabled is True:
             # Simply a pass-through to runNEPIBot()
             self.runNEPIBot()
@@ -389,7 +389,7 @@ class NEPIEdgeRosBridge:
             # Update the param server
             rospy.set_param('~auto_attempts_per_hour', new_auto_attempts_per_hour)
             # Update the scheduler
-            enabled = rospy.get_param('~enabled', False)
+            enabled = rospy.get_param('~enabled')
             self.updateAutoConnectionScheduler(enabled, new_auto_attempts_per_hour)
 
     def enableNEPIBotLogStorage(self, msg):
@@ -398,24 +398,24 @@ class NEPIEdgeRosBridge:
 
     def enableLB(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
-        prev_lb_enabled = rospy.get_param('~lb/enabled', False)
+        prev_lb_enabled = rospy.get_param('~lb/enabled')
         new_lb_enabled = msg.data
         if prev_lb_enabled != new_lb_enabled:
             # Update the param server
             rospy.set_param('~lb/enabled', new_lb_enabled)
             # Update the scheduler
-            lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", 0.0)
+            lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour")
             self.updateDataCollectionScheduler(new_lb_enabled, lb_data_sets_per_hour)
 
     def setLBDataSetsPerHour(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
-        prev_sets_per_hour = rospy.get_param('~lb/data_sets_per_hour', 0.0)
+        prev_sets_per_hour = rospy.get_param('~lb/data_sets_per_hour')
         new_sets_per_hour = msg.data
         if prev_sets_per_hour != new_sets_per_hour:
             # Update the param server
             rospy.set_param('~lb/data_sets_per_hour', new_sets_per_hour)
             # Update the scheduler
-            lb_enabled = rospy.get_param('~lb/enabled', False)
+            lb_enabled = rospy.get_param('~lb/enabled')
             self.updateDataCollectionScheduler(lb_enabled, new_sets_per_hour)
 
     def selectLBDataSources(self, msg):
@@ -463,10 +463,10 @@ class NEPIEdgeRosBridge:
         resp.status.alias, resp.status.lb_comms_types = self.extractFieldsFromNEPIBotConfig()
 
         # Many fields come from the param server
-        resp.status.enabled = rospy.get_param("~enabled", False)
+        resp.status.enabled = rospy.get_param("~enabled")
         resp.status.auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour", 0)
-        resp.status.lb_enabled = rospy.get_param("~lb/enabled", False)
-        for entry in rospy.get_param("~lb/available_data_sources", None):
+        resp.status.lb_enabled = rospy.get_param("~lb/enabled")
+        for entry in rospy.get_param("~lb/available_data_sources"):
             if 'topic' in entry:
                 resp.status.lb_available_data_sources.append(entry['topic'])
                 if entry['enabled'] is True:
@@ -475,8 +475,8 @@ class NEPIEdgeRosBridge:
                 resp.status.lb_available_data_sources.append(entry['service'])
                 if entry['enabled'] is True:
                     resp.status.lb_selected_data_sources.append(entry['service'])
-        resp.status.hb_enabled = rospy.get_param("~hb/enabled", False)
-        resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload", False)
+        resp.status.hb_enabled = rospy.get_param("~hb/enabled")
+        resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload")
 
         # Some fields come from the last nepi-bot status file, which we parse in runNEPIBot
         resp.status.lb_last_connection_time = self.lb_last_connection_time
