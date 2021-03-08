@@ -38,13 +38,6 @@ class NEPIEdgeRosBridge:
     def autoConnectTimerExpired(self, timer):
         rospy.loginfo('Scheduled auto-connect session starting')
 
-        # If LB is enabled, we are required (by NEPI Policy) to create a brand-new status message
-        lb_enabled = rospy.get_param('~lb/enabled')
-        if lb_enabled is True:
-            rospy.loginfo('Gathering an updated LB status for the upcoming LB session')
-            max_status_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
-            self.createNEPIStatus(timeout_s=max_status_wait_time_s, export_on_complete=True)
-
         # Start BOT and follow-up processing
         self.runNEPIBot()
         # TODO: Anything else?
@@ -65,8 +58,14 @@ class NEPIEdgeRosBridge:
             # Get the current timestamp for use as a directory name later
             start_time_subdir_name = datetime.utcnow().replace(microsecond=0).isoformat().replace(':', '')
 
-            # Run the bot and wait for it to complete
+            # If LB is enabled, we are required (by NEPI Policy) to create a brand-new status message
             lb_enabled = rospy.get_param('~lb/enabled')
+            if lb_enabled is True:
+                rospy.loginfo('Gathering an updated LB status for the upcoming LB session')
+                max_status_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
+                self.createNEPIStatus(timeout_s=max_status_wait_time_s, export_on_complete=True)
+
+            # Run the bot and wait for it to complete
             lb_timeout_s = rospy.get_param('~lb/session_max_time_s')
             hb_enabled = rospy.get_param('~hb/enabled')
             hb_timeout_s = rospy.get_param('~hb/session_max_time_s')
