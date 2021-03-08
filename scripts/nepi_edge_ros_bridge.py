@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from shutil import copyfile
 import json
+from math import degrees
 
 import rospy
 from tf.transformations import euler_from_quaternion
@@ -245,7 +246,7 @@ class NEPIEdgeRosBridge:
         heading_ref_from_bool = NEPI_EDGE_HEADING_REF_TRUE_NORTH if nav_pos_resp.nav_pos.heading_true_north is True else NEPI_EDGE_HEADING_REF_MAG_NORTH
         quaternion_orientation = (nav_pos_resp.nav_pos.orientation.x, nav_pos_resp.nav_pos.orientation.y,
                                   nav_pos_resp.nav_pos.orientation.z, nav_pos_resp.nav_pos.orientation.w)
-        euler_orientation = euler_from_quaternion(quaternion_orientation)
+        euler_orientation_rad = euler_from_quaternion(quaternion_orientation)
 
         # Update the timeout period
         elapsed_ros = rospy.get_rostime() - start_time_ros
@@ -269,7 +270,7 @@ class NEPIEdgeRosBridge:
             self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
                                                       latitude_deg = nav_pos_resp.nav_pos.fix.latitude, longitude_deg = nav_pos_resp.nav_pos.fix.longitude,
                                                       heading_ref = heading_ref_from_bool, heading_deg = nav_pos_resp.nav_pos.heading,
-                                                      roll_angle_deg = euler_orientation[0], pitch_angle_deg = euler_orientation[1])
+                                                      roll_angle_deg = degrees(euler_orientation_rad[0]), pitch_angle_deg = degrees(euler_orientation_rad[1]))
             self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
             if export_on_complete is True:
                 empty_snippets = []
