@@ -96,7 +96,7 @@ lb:
       snippet_type: bbx
       snippet_id: 0
       enabled: false
-      conversion_call: lb_convert_detection_boxes
+      conversion_call: lb_ros_msg_to_yaml
       #conversion_parameters:
 
     - topic: classifier/detection_image
