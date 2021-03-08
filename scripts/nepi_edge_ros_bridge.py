@@ -47,6 +47,8 @@ class NEPIEdgeRosBridge:
         # Ensure this only runs once at a time -- this lock is held through the entire execution of nepi-bot
         #if self.nepi_bot_lock.acquire(blocking=False) is True: # Python 3
         if self.nepi_bot_lock.acquire(False) is True:
+            self.bot_running = True
+
             # First, setup the HB data offload if so configured
             do_data_offload = rospy.get_param('~hb/auto_data_offload')
             if do_data_offload is True:
@@ -148,6 +150,7 @@ class NEPIEdgeRosBridge:
                         copyfile(full_file_name, os.path.join(nepi_log_storage_folder,f))
                         os.remove(full_file_name)
 
+            self.bot_running = False
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
 
@@ -490,6 +493,7 @@ class NEPIEdgeRosBridge:
         # because it can change via NEPI standard config or SOFTWARE channels
         resp.status.nuid = self.nepi_sdk.getBotNUID()
         resp.status.alias, resp.status.lb_comms_types = self.extractFieldsFromNEPIBotConfig()
+        resp.status.bot_running = self.bot_running
 
         # Many fields come from the param server
         resp.status.enabled = rospy.get_param("~enabled")
@@ -550,6 +554,7 @@ class NEPIEdgeRosBridge:
         self.hb_last_connection_time = rospy.Time()
         self.hb_do_transfered_mb = 0
         self.hb_dt_transfered_mb = 0
+        self.bot_running = False
 
         # Subscribe to topics
         rospy.Subscriber('~enable', Bool, self.enableNEPIEdge)
