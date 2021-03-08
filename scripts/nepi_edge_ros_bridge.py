@@ -409,6 +409,9 @@ class NEPIEdgeRosBridge:
         else:
             rospy.logwarn("Cannot connect now -- NEPI Edge is currently disabled")
 
+    def createLBDataSetNow(self, msg):
+        self.createLBDataSet()
+
     def setAutoAttemptsPerHour(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
         prev_auto_attempts_per_hour = rospy.get_param('~auto_attempts_per_hour')
@@ -562,6 +565,7 @@ class NEPIEdgeRosBridge:
         rospy.Subscriber('~set_auto_attempts_per_hour', Float32, self.setAutoAttemptsPerHour)
         rospy.Subscriber('~enable_nepi_log_storage', Bool, self.enableNEPIBotLogStorage)
         rospy.Subscriber('~lb/enable', Bool, self.enableLB)
+        rospy.Subscriber('~lb/create_data_set_now', Empty, self.createLBDataSetNow)
         rospy.Subscriber('~lb/set_data_sets_per_hour', Float32, self.setLBDataSetsPerHour)
         rospy.Subscriber('~lb/select_data_sources', StringArray, self.selectLBDataSources)
         rospy.Subscriber('~hb/enable', Bool, self.enableHB)
