@@ -1,7 +1,7 @@
-enabled: true                                                     # Top-level NEPI Edge device enabled/disabled
-auto_attempts_per_hour: 3                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
+enabled: false                                                    # Top-level NEPI Edge device enabled/disabled
+auto_attempts_per_hour: 6                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
 nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
-nepi_log_storage_enabled: true                                    # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
+nepi_log_storage_enabled: false                                   # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
 nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on device filesystem to store NEPI Edge logs
 
 # TODO: Config param mapping support: lb config messages to specific parameter adjustments
@@ -9,7 +9,7 @@ nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on devi
 lb:
   enabled: true                                                   # Specifies whether LB will be attempted
   session_max_time_s: 60                                          # Max amount of time to allow for LB connection
-  data_sets_per_hour: 4                                           # Number of times per hour status and enabled data topics will be collected as an LB data set
+  data_sets_per_hour: 12                                          # Number of times per hour status and enabled data topics will be collected as an LB data set
   max_data_wait_time_s: 30.0                                      # Max number of seconds to wait for enabled data to arrive before generating the output
 
   # TODO: define the ROS topics and services that generate the individual fields of the status message... will hard-code for 3DX for now
@@ -21,7 +21,7 @@ lb:
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
       snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
-      enabled: false                                              # true ==> topic collected for LB data set
+      enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
@@ -48,7 +48,7 @@ lb:
       msg_type: Image
       snippet_type: img
       snippet_id: 3
-      enabled: true
+      enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:
 
@@ -57,7 +57,7 @@ lb:
       msg_type: Image
       snippet_type: img
       snippet_id: 4
-      enabled: true
+      enabled: false
       conversion_call: lb_convert_image
       #conversion_parameters:
 
