@@ -3,6 +3,7 @@ auto_attempts_per_hour: 6                                         # Number of ti
 nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
 nepi_log_storage_enabled: false                                   # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
 nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on device filesystem to store NEPI Edge logs
+reboot_sys_on_sw_update: true                                     # True if a full system reboot should be executed after new software installed via NEPI
 
 # TODO: Config param mapping support: lb config messages to specific parameter adjustments
 

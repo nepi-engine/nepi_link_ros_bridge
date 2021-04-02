@@ -103,7 +103,7 @@ class NEPIEdgeRosBridge:
             # At completion, import the status file into class members -- do this while continuing to hold the lock
             # as nepi-bot would delete the status files if it happened to run again
             exec_status = NEPIEdgeExecStatus()
-            (lb_statuses, hb_statuses) = exec_status.importStatus()
+            (lb_statuses, hb_statuses, software_updated) = exec_status.importStatus()
 
             # Update fields for any new connections
             for lb_stat in lb_statuses:
@@ -151,6 +151,15 @@ class NEPIEdgeRosBridge:
                         os.remove(full_file_name)
 
             self.bot_running = False
+
+            # If configured, reboot the system now
+            if (software_updated is True) and (rospy.get_param('~reboot_sys_on_sw_update') is True):
+                rospy.logwarn("Rebooting now because s/w was updated via NEPI")
+                rospy.sleep(1.0)
+                os.system('reboot now')
+            else:
+                rospy.logwarn("Debug: Not rebooting because software_updated is " + str(software_updated) + ' and reboot_sys_on_sw_update is ' + str(rospy.get_param('~reboot_sys_on_sw_update')))
+
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
 
