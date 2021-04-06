@@ -158,7 +158,7 @@ class NEPIEdgeRosBridge:
                 rospy.sleep(1.0)
                 os.system('reboot now')
             else:
-                rospy.logwarn("Debug: Not rebooting because software_updated is " + str(software_updated) + ' and reboot_sys_on_sw_update is ' + str(rospy.get_param('~reboot_sys_on_sw_update')))
+                rospy.loginfo("Not rebooting because software_updated is " + str(software_updated) + ' and reboot_sys_on_sw_update is ' + str(rospy.get_param('~reboot_sys_on_sw_update')))
 
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
