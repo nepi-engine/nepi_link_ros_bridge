@@ -17,7 +17,7 @@ lb:
 
   # The following is a list of ROS topics published on the device that are eligible for conversion to LB data products
   available_data_sources:
-    - topic: 3dx_device/stereo_cam_mgr/img_0/image_raw            # Topic name either absolute or relative to this node's parent namespace
+    - topic: sensor_3dx/stereo_cam_mgr/img_0/image_raw            # Topic name either absolute or relative to this node's parent namespace
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
@@ -26,7 +26,7 @@ lb:
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: 3dx_device/stereo_cam_mgr/img_1/image_raw
+    - topic: sensor_3dx/stereo_cam_mgr/img_1/image_raw
       msg_mod: sensor_msgs.msg
       msg_type: Image
       snippet_type: img
@@ -35,7 +35,7 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - topic: 3dx_device/stereo_cam_mgr/img_alt/image_raw
+    - topic: sensor_3dx/stereo_cam_mgr/img_alt/image_raw
       msg_mod: sensor_msgs.msg
       msg_type: Image
       snippet_type: img
@@ -44,7 +44,7 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - topic: 3dx_device/stereo_cam_driver/left/image_rect_color
+    - topic: sensor_3dx/stereo_cam_driver/left/image_rect_color
       msg_mod: sensor_msgs.msg
       msg_type: Image
       snippet_type: img
@@ -53,7 +53,7 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - topic: 3dx_device/stereo_cam_driver/right/image_rect_color
+    - topic: sensor_3dx/stereo_cam_driver/right/image_rect_color
       msg_mod: sensor_msgs.msg
       msg_type: Image
       snippet_type: img
@@ -62,7 +62,7 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - topic: 3dx_device/stereo_cam_driver/point_cloud/cloud_registered
+    - topic: sensor_3dx/stereo_cam_driver/point_cloud/cloud_registered
       msg_mod: sensor_msgs.msg
       msg_type: PointCloud2
       snippet_type: pcd
@@ -71,7 +71,7 @@ lb:
       conversion_call: lb_convert_cloud
       #conversion_parameters:
 
-    - topic: 3dx_device/stereo_cam_driver/depth/depth_registered
+    - topic: sensor_3dx/stereo_cam_driver/depth/depth_registered
       msg_mod: sensor_msgs.msg
       msg_type: Image
       snippet_type: dep

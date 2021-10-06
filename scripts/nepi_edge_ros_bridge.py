@@ -536,12 +536,12 @@ class NEPIEdgeRosBridge:
         # Some fields we simply calculate
         # TODO: Should these fs query capabilities be moved to SDK?
         nepi_bot_folder = rospy.get_param('~nepi_bot_root_folder')
-        resp.status.lb_data_queue_size_KB = getDirectorySize(os.path.join(nepi_bot_folder, 'lb/data')) / 1000.0
+        resp.status.lb_data_queue_size_kb = getDirectorySize(os.path.join(nepi_bot_folder, 'lb/data')) / 1000.0
 
         if rospy.get_param('~hb/auto_data_offload') is True:
-            resp.status.hb_data_queue_size_MB = getDirectorySize(rospy.get_param('~hb/data_source_folder')) / 1000000.0
+            resp.status.hb_data_queue_size_mb = getDirectorySize(rospy.get_param('~hb/data_source_folder')) / 1000000.0
         else:
-            resp.status.hb_data_queue_size_MB = 0
+            resp.status.hb_data_queue_size_mb = 0
 
 
         return resp
