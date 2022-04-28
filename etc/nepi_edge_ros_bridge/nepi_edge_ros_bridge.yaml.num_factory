@@ -113,4 +113,4 @@ hb:
   enabled: true                                                   # Specifies whether HB will be attempted
   session_max_time_s: 300                                         # Max amount of time to allow for HB connection
   data_source_folder: /home/numurus_user/data                     # Device filesystem path to the data folder for HB data offload
-  auto_data_offload: true                                         # Automatically offload data source folder on each HB connection
+  auto_data_offload: false                                        # Automatically offload data source folder on each HB connection
