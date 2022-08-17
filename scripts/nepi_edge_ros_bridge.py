@@ -13,6 +13,7 @@ from tf.transformations import euler_from_quaternion
 from std_msgs.msg import Bool, Empty, Float32
 from num_sdk_msgs.msg import StringArray
 from num_sdk_msgs.srv import NEPIStatusQuery, NEPIStatusQueryResponse
+from num_sdk_msgs.msg import SaveData, SaveDataRate
 
 # Following is used for 3DX-specific NEPI LB Status creation -- remove when that
 # functionality is made generic
@@ -291,6 +292,13 @@ class NEPIEdgeRosBridge:
         rospy.loginfo('Scheduled LB data collection session starting')
         self.createLBDataSet()
 
+    def eventTriggeredSaveDataTimerExpired(self, timer):
+        stop_save_data_msg = SaveData()
+        stop_save_data_msg.save_continuous = False
+        stop_save_data_msg.save_raw = False
+        self.save_data_pub.publish(stop_save_data_msg)
+        self.onboard_save_timer.shutdown() # One-shot timer
+
     def createLBDataSet(self):
         rospy.loginfo('Creating LB Data set ')
         # First, launch the status message thread
@@ -498,6 +506,42 @@ class NEPIEdgeRosBridge:
         rospy.loginfo("HB Auto Data Offloading: " + ("Enabled" if (msg.data == True) else "Disabled"))
         rospy.set_param('~hb/auto_data_offload', msg.data)
 
+    def handleSnapshotEvent(self, req):
+        enabled = rospy.get_param("~enabled")
+        # Do nothing if NEPI is not enabled
+        if enabled is False:
+            return
+
+        if self.snapshot_event_handler_running is True:
+            rospy.logwarn("Already running snapshot event handler, so ignoring latest event")
+            return
+
+        rospy.loginfo("Running snapshot event handler")
+        self.snapshot_event_handler_running = True
+
+        # Start onboard data saving if so configured
+        onboard_save_rate_hz = rospy.get_param("~snapshot_event/onboard_save_rate_hz")
+        onboard_save_duration_s = rospy.get_param("~snapshot_event/onboard_save_duration_s")
+        if (onboard_save_rate_hz > 0.0 and onboard_save_duration_s > 0.0):
+            rate_msg = SaveDataRate()
+            rate_msg.data_product = rate_msg.ALL_DATA_PRODUCTS
+            rate_msg.save_rate_hz = onboard_save_rate_hz
+            self.save_data_rate_pub.publish(rate_msg)
+
+            save_msg = SaveData()
+            save_msg.save_continuous = True
+            save_msg.save_raw = False
+            self.save_data_pub.publish(save_msg)
+
+            # Set a timer to disable data saving
+            self.onboard_save_timer = rospy.Timer(rospy.Duration(onboard_save_duration_s), self.eventTriggeredSaveDataTimerExpired)
+
+        triggers_lb = rospy.get_param("~snapshot_event/triggers_lb")
+        if triggers_lb is True:
+            self.createLBDataSet()
+
+        self.snapshot_event_handler_running = False
+
     def provideNEPIStatus(self, req):
         resp = NEPIStatusQueryResponse()
 
@@ -568,6 +612,10 @@ class NEPIEdgeRosBridge:
         self.hb_dt_transfered_mb = 0
         self.bot_running = False
 
+        # Initializer event handler fields
+        self.snapshot_event_handler_running = False
+        self.onboard_save_timer = None
+
         # Subscribe to topics
         rospy.Subscriber('~enable', Bool, self.enableNEPIEdge)
         rospy.Subscriber('~connect_now', Empty, self.connectNow)
@@ -580,8 +628,14 @@ class NEPIEdgeRosBridge:
         rospy.Subscriber('~hb/enable', Bool, self.enableHB)
         rospy.Subscriber('~hb/set_auto_data_offloading', Bool, self.setHBAutoDataOffloading)
 
+        rospy.Subscriber('snapshot_event', Empty, self.handleSnapshotEvent)
+
         # Advertise services
         rospy.Service('nepi_status_query', NEPIStatusQuery, self.provideNEPIStatus)
+
+        # Initialize publishers
+        self.save_data_pub = rospy.Publisher('save_data', SaveData, queue_size=3)
+        self.save_data_rate_pub = rospy.Publisher('save_data_rate', SaveDataRate, queue_size=3)
 
         # Create and initialize nepi-edge-sdk object
         self.nepi_sdk = NEPIEdgeSDK()

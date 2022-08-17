@@ -109,8 +109,22 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
+    - topic: target_localizer/localization_image
+      msg_mod: sensor_msgs.msg
+      msg_type: Image
+      snippet_type: img
+      snippet_id: 6
+      enabled: false
+      conversion_call: lb_convert_image
+      #conversion_parameters:
+
 hb:
   enabled: true                                                   # Specifies whether HB will be attempted
   session_max_time_s: 300                                         # Max amount of time to allow for HB connection
   data_source_folder: /home/numurus_user/data                     # Device filesystem path to the data folder for HB data offload
   auto_data_offload: false                                        # Automatically offload data source folder on each HB connection
+
+snapshot_event:
+  triggers_lb: true                                               # Whether LB will run (as configured) when snapshot event occurs
+  onboard_save_rate_hz: 1.0                                       # Onboard save data rate when snapshot event occurs. Zero indicates no data will be saved
+  onboard_save_duration_s: 30.0                                   # Onboard save duration when snapshot event occurs. Zero indicates no data will be saved
