@@ -127,4 +127,4 @@ hb:
 snapshot_event:
   triggers_lb: true                                               # Whether LB will run (as configured) when snapshot event occurs
   onboard_save_rate_hz: 1.0                                       # Onboard save data rate when snapshot event occurs. Zero indicates no data will be saved
-  onboard_save_duration_s: 30.0                                   # Onboard save duration when snapshot event occurs. Zero indicates no data will be saved
+  onboard_save_duration_s: 2.0                                    # Onboard save duration when snapshot event occurs. Zero indicates no data will be saved
