@@ -73,9 +73,9 @@ class NEPILinkRosBridge:
             self.bot_running = True
 
             # First, setup the HB data offload if so configured
-            do_data_offload = rospy.get_param('~hb/auto_data_offload')
+            do_data_offload = rospy.get_param('~hb/auto_data_offload', DEFAULT_HB_AUTO_DATA_OFFLOAD)
             if do_data_offload is True:
-                data_folder = rospy.get_param('~hb/data_source_folder')
+                data_folder = rospy.get_param('~hb/data_source_folder', DEFAULT_HB_DATA_SOURCE_FOLDER)
                 self.nepi_sdk.linkHBDataFolder(data_folder)
             else:
                 self.nepi_sdk.unlinkHBDataFolder() # No harm in doing this unnecessarily
@@ -84,16 +84,16 @@ class NEPILinkRosBridge:
             start_time_subdir_name = datetime.utcnow().replace(microsecond=0).isoformat().replace(':', '')
 
             # If LB is enabled, we are required (by NEPI Policy) to create a brand-new status message
-            lb_enabled = rospy.get_param('~lb/enabled')
+            lb_enabled = rospy.get_param('~lb/enabled', DEFAULT_LB_ENABLED)
             if lb_enabled is True:
                 rospy.loginfo('Gathering an updated LB status for the upcoming LB session')
-                max_status_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
-                self.createNEPIStatus(timeout_s=max_status_wait_time_s, export_on_complete=True)
+                max_status_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s', DEFAULT_LB_MAX_DATA_WAIT_TIME_S)
+                self.createNEPILinkStatus(timeout_s=max_status_wait_time_s, export_on_complete=True)
 
             # Run the bot and wait for it to complete
-            lb_timeout_s = rospy.get_param('~lb/session_max_time_s')
-            hb_enabled = rospy.get_param('~hb/enabled')
-            hb_timeout_s = rospy.get_param('~hb/session_max_time_s')
+            lb_timeout_s = rospy.get_param('~lb/session_max_time_s', DEFAULT_LB_SESSION_MAX_TIME)
+            hb_enabled = rospy.get_param('~hb/enabled', DEFAULT_HB_ENABLED)
+            hb_timeout_s = rospy.get_param('~hb/session_max_time_s', DEFAULT_HB_SESSION_MAX_TIME_S)
             rospy.loginfo('Starting NEPI-BOT at ' + start_time_subdir_name +
                           '\n\tRun LB = ' + str(lb_enabled) + ' (' + str(lb_timeout_s) + 's timeout)' +
                           '\n\tRun HB = ' + str(lb_enabled) + ' (' + str(hb_timeout_s) + 's timeout)')
@@ -158,12 +158,12 @@ class NEPILinkRosBridge:
 
             # Copy all the log files if so configured -- do this while continuing to hold the lock
             # as nepi-bot might delete the log files if it happened to run again
-            if rospy.get_param('~nepi_log_storage_enabled') is True:
-                nepi_log_storage_folder = os.path.join(rospy.get_param('~nepi_log_storage_folder'), start_time_subdir_name)
+            if rospy.get_param('~nepi_log_storage_enabled', DEFAULT_NEPI_LOG_STORAGE_ENABLED) is True:
+                nepi_log_storage_folder = os.path.join(rospy.get_param('~nepi_log_storage_folder', DEFAULT_NEPI_LOG_STORAGE_FOLDER), start_time_subdir_name)
                 if not os.path.exists(nepi_log_storage_folder):
                     os.makedirs(nepi_log_storage_folder)
 
-                log_src_folder = os.path.join(rospy.get_param('~nepi_bot_root_folder'), 'log')
+                log_src_folder = os.path.join(rospy.get_param('~nepi_bot_root_folder', DEFAULT_NEPI_BOT_ROOT_FOLDER), 'log')
                 src_files = os.listdir(log_src_folder)
                 for f in src_files:
                     full_file_name = os.path.join(log_src_folder, f)
@@ -176,12 +176,12 @@ class NEPILinkRosBridge:
             self.bot_running = False
 
             # If configured, reboot the system now
-            if (software_updated is True) and (rospy.get_param('~reboot_sys_on_sw_update') is True):
+            if (software_updated is True) and (rospy.get_param('~reboot_sys_on_sw_update', DEFAULT_REBOOT_SYS_ON_SW_UPDATE) is True):
                 rospy.logwarn("Rebooting now because s/w was updated via NEPI")
                 rospy.sleep(1.0)
                 os.system('reboot now')
             else:
-                rospy.loginfo("Not rebooting because software_updated is " + str(software_updated) + ' and reboot_sys_on_sw_update is ' + str(rospy.get_param('~reboot_sys_on_sw_update')))
+                rospy.loginfo("Not rebooting because software_updated is " + str(software_updated) + ' and reboot_sys_on_sw_update is ' + str(rospy.get_param('~reboot_sys_on_sw_update', DEFAULT_REBOOT_SYS_ON_SW_UPDATE)))
 
             # Must ALWAYS release the lock
             self.nepi_bot_lock.release()
@@ -329,7 +329,7 @@ class NEPILinkRosBridge:
         rospy.loginfo('Creating LB Data set ')
         # First, launch the status message thread
         wait_for_message_threads = {}
-        max_data_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s')
+        max_data_wait_time_s = rospy.get_param('~lb/max_data_wait_time_s', DEFAULT_LB_MAX_DATA_WAIT_TIME_S)
 
         # New data set, so clear snippets
         with self.nepi_data_snippets_lock:
@@ -411,7 +411,7 @@ class NEPILinkRosBridge:
     def extractFieldsFromNEPIBotConfig(self):
         # Query param server for nepi-bot root folder and use that to determine nepi-bot config file
         # Open config file (read-only) and find the fields of interest
-        nepi_bot_root_folder = rospy.get_param('~nepi_bot_root_folder')
+        nepi_bot_root_folder = rospy.get_param('~nepi_bot_root_folder', DEFAULT_NEPI_BOT_ROOT_FOLDER)
         nepi_bot_cfg_file = os.path.join(nepi_bot_root_folder, 'cfg/bot/config.json')
         with open(nepi_bot_cfg_file, 'r') as f:
             cfg_dict = json.load(f)
@@ -421,19 +421,19 @@ class NEPILinkRosBridge:
         # Most parameters are handled on an as-needed basis, so here we only
         # deal with those that control top-level behavior
 
-        enabled = rospy.get_param("~enabled")
-        auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour")
+        enabled = rospy.get_param("~enabled", DEFAULT_ENABLED)
+        auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour", DEFAULT_AUTO_ATTEMPTS_PER_HOUR)
         self.updateAutoConnectionScheduler(enabled, auto_attempts_per_hour)
 
         # Only apply the data_sets_per_hour if top-level enabled is true
-        lb_enabled = rospy.get_param("~lb/enabled")
-        lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour")
+        lb_enabled = rospy.get_param("~lb/enabled", DEFAULT_LB_ENABLED)
+        lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", DEFAULT_LB_DATA_SETS_PER_HOUR)
         run_data_collection = enabled and lb_enabled
         self.updateDataCollectionScheduler(run_data_collection, lb_data_sets_per_hour)
 
     def enableNEPIEdge(self, msg):
         # Check if this is truly an update -- if not, don't do anything
-        prev_enabled = rospy.get_param('~enabled')
+        prev_enabled = rospy.get_param('~enabled', DEFAULT_ENABLED)
         new_enabled = msg.data
         if prev_enabled != new_enabled:
             rospy.logwarn("Setting NEPI Edge enabled to " + str(new_enabled))
@@ -444,7 +444,7 @@ class NEPILinkRosBridge:
             self.updateFromParamServer()
 
     def connectNow(self, msg):
-        enabled = rospy.get_param("~enabled")
+        enabled = rospy.get_param("~enabled", DEFAULT_ENABLED)
         if enabled is True:
             # Simply a pass-through to runNEPIBot()
             rospy.loginfo("Connecting now by command")
@@ -457,13 +457,13 @@ class NEPILinkRosBridge:
 
     def setAutoAttemptsPerHour(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
-        prev_auto_attempts_per_hour = rospy.get_param('~auto_attempts_per_hour')
+        prev_auto_attempts_per_hour = rospy.get_param('~auto_attempts_per_hour', DEFAULT_AUTO_ATTEMPTS_PER_HOUR)
         new_auto_attempts_per_hour = msg.data
         if prev_auto_attempts_per_hour != new_auto_attempts_per_hour:
             # Update the param server
             rospy.set_param('~auto_attempts_per_hour', new_auto_attempts_per_hour)
             # Update the scheduler
-            enabled = rospy.get_param('~enabled')
+            enabled = rospy.get_param('~enabled', DEFAULT_ENABLED)
             self.updateAutoConnectionScheduler(enabled, new_auto_attempts_per_hour)
 
     def enableNEPIBotLogStorage(self, msg):
@@ -473,29 +473,29 @@ class NEPILinkRosBridge:
 
     def enableLB(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
-        prev_lb_enabled = rospy.get_param('~lb/enabled')
+        prev_lb_enabled = rospy.get_param('~lb/enabled', DEFAULT_LB_ENABLED)
         new_lb_enabled = msg.data
         if prev_lb_enabled != new_lb_enabled:
             rospy.loginfo("LB: " + ("Enabled" if (msg.data == True) else "Disabled"))
             # Update the param server
             rospy.set_param('~lb/enabled', new_lb_enabled)
             # Update the scheduler
-            lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour")
+            lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", DEFAULT_LB_DATA_SETS_PER_HOUR)
             self.updateDataCollectionScheduler(new_lb_enabled, lb_data_sets_per_hour)
 
     def setLBDataSetsPerHour(self, msg):
         # Check if this is truly an update -- if not, don't need to do anything
-        prev_sets_per_hour = rospy.get_param('~lb/data_sets_per_hour')
+        prev_sets_per_hour = rospy.get_param('~lb/data_sets_per_hour', DEFAULT_LB_DATA_SETS_PER_HOUR)
         new_sets_per_hour = msg.data
         if prev_sets_per_hour != new_sets_per_hour:
             # Update the param server
             rospy.set_param('~lb/data_sets_per_hour', new_sets_per_hour)
             # Update the scheduler
-            lb_enabled = rospy.get_param('~lb/enabled')
+            lb_enabled = rospy.get_param('~lb/enabled', DEFAULT_LB_ENABLED)
             self.updateDataCollectionScheduler(lb_enabled, new_sets_per_hour)
 
     def selectLBDataSources(self, msg):
-        available_sources = rospy.get_param("~lb/available_data_sources")
+        available_sources = rospy.get_param("~lb/available_data_sources", None)
         # first set all sources as disabled -- we will individually enable them below
         for source in available_sources:
             source['enabled'] = False
@@ -533,7 +533,7 @@ class NEPILinkRosBridge:
         rospy.set_param('~hb/auto_data_offload', msg.data)
 
     def handleSnapshotEvent(self, req):
-        enabled = rospy.get_param("~enabled")
+        enabled = rospy.get_param("~enabled", DEFAULT_ENABLED)
         # Do nothing if NEPI is not enabled
         if enabled is False:
             return
@@ -546,8 +546,8 @@ class NEPILinkRosBridge:
         self.snapshot_event_handler_running = True
 
         # Start onboard data saving if so configured
-        onboard_save_rate_hz = rospy.get_param("~snapshot_event/onboard_save_rate_hz")
-        onboard_save_duration_s = rospy.get_param("~snapshot_event/onboard_save_duration_s")
+        onboard_save_rate_hz = rospy.get_param("~snapshot_event/onboard_save_rate_hz", DEFAULT_SNAPSHOT_SAVE_RATE_HZ)
+        onboard_save_duration_s = rospy.get_param("~snapshot_event/onboard_save_duration_s", DEFAULT_SNAPSHOT_ONBOARD_SAVE_DURATION_S)
         if (onboard_save_rate_hz > 0.0 and onboard_save_duration_s > 0.0):
             rate_msg = SaveDataRate()
             rate_msg.data_product = rate_msg.ALL_DATA_PRODUCTS
@@ -562,7 +562,7 @@ class NEPILinkRosBridge:
             # Set a timer to disable data saving
             self.onboard_save_timer = rospy.Timer(rospy.Duration(onboard_save_duration_s), self.eventTriggeredSaveDataTimerExpired)
 
-        triggers_lb = rospy.get_param("~snapshot_event/triggers_lb")
+        triggers_lb = rospy.get_param("~snapshot_event/triggers_lb", DEFAULT_SNAPSHOT_TRIGGERS_LB)
         if triggers_lb is True:
             self.createLBDataSet()
 
@@ -578,12 +578,12 @@ class NEPILinkRosBridge:
         resp.status.bot_running = self.bot_running
 
         # Many fields come from the param server
-        resp.status.enabled = rospy.get_param("~enabled")
-        resp.status.auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour")
-        resp.status.log_storage_enabled = rospy.get_param("~nepi_log_storage_enabled")
-        resp.status.lb_enabled = rospy.get_param("~lb/enabled")
-        resp.status.lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour")
-        for entry in rospy.get_param("~lb/available_data_sources"):
+        resp.status.enabled = rospy.get_param("~enabled", DEFAULT_ENABLED)
+        resp.status.auto_attempts_per_hour = rospy.get_param("~auto_attempts_per_hour", DEFAULT_AUTO_ATTEMPTS_PER_HOUR)
+        resp.status.log_storage_enabled = rospy.get_param("~nepi_log_storage_enabled", DEFAULT_NEPI_LOG_STORAGE_ENABLED)
+        resp.status.lb_enabled = rospy.get_param("~lb/enabled", DEFAULT_LB_ENABLED)
+        resp.status.lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", DEFAULT_LB_DATA_SETS_PER_HOUR)
+        for entry in rospy.get_param("~lb/available_data_sources", None):
             if 'topic' in entry:
                 resp.status.lb_available_data_sources.append(entry['topic'])
                 if entry['enabled'] is True:
@@ -592,8 +592,8 @@ class NEPILinkRosBridge:
                 resp.status.lb_available_data_sources.append(entry['service'])
                 if entry['enabled'] is True:
                     resp.status.lb_selected_data_sources.append(entry['service'])
-        resp.status.hb_enabled = rospy.get_param("~hb/enabled")
-        resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload")
+        resp.status.hb_enabled = rospy.get_param("~hb/enabled", DEFAULT_HB_ENABLED)
+        resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload", DEFAULT_HB_AUTO_DATA_OFFLOAD)
 
         # Some fields come from the last nepi-bot status file, which we parse in runNEPIBot
         resp.status.lb_last_connection_time = self.lb_last_connection_time
@@ -605,11 +605,11 @@ class NEPILinkRosBridge:
 
         # Some fields we simply calculate
         # TODO: Should these fs query capabilities be moved to SDK?
-        nepi_bot_folder = rospy.get_param('~nepi_bot_root_folder')
+        nepi_bot_folder = rospy.get_param('~nepi_bot_root_folder', DEFAULT_NEPI_BOT_ROOT_FOLDER)
         resp.status.lb_data_queue_size_kb = getDirectorySize(os.path.join(nepi_bot_folder, 'lb/data')) / 1000.0
 
-        if rospy.get_param('~hb/auto_data_offload') is True:
-            resp.status.hb_data_queue_size_mb = getDirectorySize(rospy.get_param('~hb/data_source_folder')) / 1000000.0
+        if rospy.get_param('~hb/auto_data_offload', DEFAULT_HB_AUTO_DATA_OFFLOAD) is True:
+            resp.status.hb_data_queue_size_mb = getDirectorySize(rospy.get_param('~hb/data_source_folder', DEFAULT_HB_DATA_SOURCE_FOLDER)) / 1000000.0
         else:
             resp.status.hb_data_queue_size_mb = 0
 
@@ -665,7 +665,7 @@ class NEPILinkRosBridge:
 
         # Create and initialize nepi-edge-sdk object
         self.nepi_sdk = NEPIEdgeSDK()
-        nepi_bot_path = rospy.get_param('~nepi_bot_root_folder')
+        nepi_bot_path = rospy.get_param('~nepi_bot_root_folder', DEFAULT_NEPI_BOT_ROOT_FOLDER)
         self.nepi_sdk.setBotBaseFilePath(nepi_bot_path)
         self.latest_nepi_status = None
         self.latest_nepi_status_lock = threading.Lock()
