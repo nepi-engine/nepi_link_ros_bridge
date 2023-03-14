@@ -11,18 +11,40 @@ import rospy
 from tf.transformations import euler_from_quaternion
 
 from std_msgs.msg import Bool, Empty, Float32
-from num_sdk_msgs.msg import StringArray
-from num_sdk_msgs.srv import NEPIStatusQuery, NEPIStatusQueryResponse
-from num_sdk_msgs.msg import SaveData, SaveDataRate
+from nepi_ros_interfaces.msg import StringArray
+from nepi_ros_interfaces.srv import NEPILinkStatusQuery, NEPILinkStatusQueryResponse
+from nepi_ros_interfaces.msg import SaveData, SaveDataRate
 
 # Following is used for 3DX-specific NEPI LB Status creation -- remove when that
 # functionality is made generic
-from num_sdk_msgs.srv import NavPosQuery, NavPosQueryRequest, NavPosQueryResponse
-from num_sdk_msgs.msg import SystemStatus
+from nepi_ros_interfaces.srv import NavPosQuery, NavPosQueryRequest, NavPosQueryResponse
+from nepi_ros_interfaces.msg import SystemStatus
 
-from num_sdk_base.save_cfg_if import SaveCfgIF
+from nepi_edge_sdk_base.save_cfg_if import SaveCfgIF
 
-from nepi_edge_sdk import *
+from nepi_edge_sdk_link import *
+
+# Default params
+DEFAULT_ENABLED = False                                             
+DEFAULT_AUTO_ATTEMPTS_PER_HOUR = 6                                  
+DEFAULT_NEPI_BOT_ROOT_FOLDER = '/opt/nepi/nepi_link/nepi-bot'       
+DEFAULT_NEPI_LOG_STORAGE_ENABLED = False                            
+DEFAULT_NEPI_LOG_STORAGE_FOLDER = '/mnt/nepi-storage/data/nepi-bot'   
+DEFAULT_REBOOT_SYS_ON_SW_UPDATE = True                              
+
+DEFAULT_LB_ENABLED = True
+DEFAULT_LB_SESSION_MAX_TIME = 60  
+DEFAULT_LB_DATA_SETS_PER_HOUR = 12    
+DEFAULT_LB_MAX_DATA_WAIT_TIME_S = 30.0
+
+DEFAULT_HB_ENABLED = True                             
+DEFAULT_HB_SESSION_MAX_TIME_S = 300                   
+DEFAULT_HB_DATA_SOURCE_FOLDER = '/mnt/nepi-storage/data'
+DEFAULT_HB_AUTO_DATA_OFFLOAD = False                  
+
+DEFAULT_SNAPSHOT_TRIGGERS_LB = True
+DEFAULT_SNAPSHOT_SAVE_RATE_HZ = 1.0                  
+DEFAULT_SNAPSHOT_ONBOARD_SAVE_DURATION_S = 2.0              
 
 def getDirectorySize(start_path):
     total_size = 0
@@ -33,8 +55,8 @@ def getDirectorySize(start_path):
             total_size += os.path.getsize(fp)
     return total_size
 
-class NEPIEdgeRosBridge:
-    NODE_NAME = "nepi_edge_ros_bridge"
+class NEPILinkRosBridge:
+    NODE_NAME = "nepi_link_ros_bridge"
 
     def autoConnectTimerExpired(self, timer):
         rospy.loginfo('Scheduled auto-connect session starting')
@@ -242,11 +264,11 @@ class NEPIEdgeRosBridge:
         with self.nepi_data_snippets_lock:
             self.latest_nepi_data_snippets.append(snippet)
 
-    def createNEPIStatus(self, timeout_s, export_on_complete = False):
+    def createNEPILinkStatus(self, timeout_s, export_on_complete = False):
         start_time_ros = rospy.get_rostime()
         timeout_ros_remaining = rospy.Duration.from_sec(timeout_s)
 
-        # Populate some of the optional fields. For now this will be 3DX-hardcoded, but eventually will be based on
+        # Populate some of the optional fields. For now this will be hardcoded to the nav_pos query response, but eventually will be based on
         # a parameter mapping defined in the config file
         nav_pos_req = NavPosQueryRequest() # Default constructor will set the query_time = {0,0} as we want
         nav_pos_query = rospy.ServiceProxy('nav_pos_query', NavPosQuery)
@@ -310,7 +332,7 @@ class NEPIEdgeRosBridge:
             self.latest_nepi_data_snippets[:] = [] # Python 2.7 compatible
 
         # Start a status query in a separate thread
-        wait_for_message_threads['nepi_status'] = threading.Thread(target=self.createNEPIStatus, kwargs={'timeout_s': max_data_wait_time_s})
+        wait_for_message_threads['nepi_status'] = threading.Thread(target=self.createNEPILinkStatus, kwargs={'timeout_s': max_data_wait_time_s})
         wait_for_message_threads['nepi_status'].start()
 
         # Now, iterate through the available_data_sources (param server) to find those that are enabled
@@ -542,8 +564,8 @@ class NEPIEdgeRosBridge:
 
         self.snapshot_event_handler_running = False
 
-    def provideNEPIStatus(self, req):
-        resp = NEPIStatusQueryResponse()
+    def provideNEPILinkStatus(self, req):
+        resp = NEPILinkStatusQueryResponse()
 
         # Some of the fields come directly from the nepi-bot config file. We parse it anew each time
         # because it can change via NEPI standard config or SOFTWARE channels
@@ -631,7 +653,7 @@ class NEPIEdgeRosBridge:
         rospy.Subscriber('snapshot_event', Empty, self.handleSnapshotEvent)
 
         # Advertise services
-        rospy.Service('nepi_status_query', NEPIStatusQuery, self.provideNEPIStatus)
+        rospy.Service('nepi_link_status_query', NEPILinkStatusQuery, self.provideNEPILinkStatus)
 
         # Initialize publishers
         self.save_data_pub = rospy.Publisher('save_data', SaveData, queue_size=3)
@@ -649,4 +671,4 @@ class NEPIEdgeRosBridge:
         rospy.spin()
 
 if __name__ == '__main__':
-    nepi_edge_ros_bridge = NEPIEdgeRosBridge()
+    nepi_link_ros_bridge = NEPILinkRosBridge()

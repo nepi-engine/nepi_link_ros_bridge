@@ -1,8 +1,8 @@
-enabled: false                                                    # Top-level NEPI Edge device enabled/disabled
+enabled: false                                                    # Top-level NEPI Link device enabled/disabled
 auto_attempts_per_hour: 6                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
-nepi_bot_root_folder: /opt/numurus/nepi/nepi-bot                  # Path on device filesystem to root folder of a nepi-bot instance
+nepi_bot_root_folder: /opt/nepi/nepi_link/nepi-bot                # Path on device filesystem to root folder of a nepi-bot instance
 nepi_log_storage_enabled: false                                   # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
-nepi_log_storage_folder: /home/numurus_user/data/nepi             # Path on device filesystem to store NEPI Edge logs
+nepi_log_storage_folder: /mnt/nepi-storage/data/nepi-bot          # Path on device filesystem to store NEPI Bot logs
 reboot_sys_on_sw_update: true                                     # True if a full system reboot should be executed after new software installed via NEPI
 
 # TODO: Config param mapping support: lb config messages to specific parameter adjustments
@@ -81,7 +81,7 @@ lb:
       #conversion_parameters:
 
     - service: nav_pos_query                                      # Service name either absolute or relative to this node's parent namespace
-      service_mod: num_sdk_msgs.srv                               # Module that includes this service type
+      service_mod: nepi_ros_interfaces.srv                               # Module that includes this service type
       service_type: NavPosQuery                                   # ROS Service type for this service
       #request_args:                                              # List of service request args as keyword/value pairs; leave out to use defaults
       #  - query_time: 0                                          # query_time = 0 indicates "most recent"
@@ -121,7 +121,7 @@ lb:
 hb:
   enabled: true                                                   # Specifies whether HB will be attempted
   session_max_time_s: 300                                         # Max amount of time to allow for HB connection
-  data_source_folder: /home/numurus_user/data                     # Device filesystem path to the data folder for HB data offload
+  data_source_folder: /mnt/nepi-storage/data                      # Device filesystem path to the data folder for HB data offload
   auto_data_offload: false                                        # Automatically offload data source folder on each HB connection
 
 snapshot_event:

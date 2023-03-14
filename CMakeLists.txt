@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(nepi_edge_ros_bridge)
+project(nepi_link_ros_bridge)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -17,8 +17,8 @@ find_package(
     REQUIRED
     COMPONENTS
     message_generation
-    num_sdk_base
-    num_sdk_msgs
+    nepi_edge_sdk_base
+    nepi_ros_interfaces
     rospy
     std_msgs
     sensor_msgs
@@ -82,7 +82,7 @@ find_package(
 #     DEPENDENCIES
 #     std_msgs  # Or other packages containing msgs
 #     sensor_msgs
-#     num_sdk_msgs
+#     nepi_ros_interfaces
 #)
 
 ################################################
@@ -117,7 +117,7 @@ find_package(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES ${PROJECT_NAME}
-   CATKIN_DEPENDS num_sdk_msgs
+   CATKIN_DEPENDS nepi_ros_interfaces
 
 #  DEPENDS system_lib
 )
@@ -181,7 +181,7 @@ catkin_package(
 # )
 
 catkin_install_python(PROGRAMS
-  scripts/nepi_edge_ros_bridge.py
+  scripts/nepi_link_ros_bridge.py
   scripts/lb_convert_image.py
   scripts/lb_ros_msg_to_yaml.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -207,9 +207,9 @@ install(DIRECTORY include/
 )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
-install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-)
+#install(DIRECTORY launch/
+#  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+#)
 
 # Install etc files (startup scripts, factory configs, etc.) to the global (not project) etc destination
 install(DIRECTORY etc/
