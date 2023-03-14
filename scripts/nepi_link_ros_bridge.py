@@ -272,7 +272,11 @@ class NEPILinkRosBridge:
         # a parameter mapping defined in the config file
         nav_pos_req = NavPosQueryRequest() # Default constructor will set the query_time = {0,0} as we want
         nav_pos_query = rospy.ServiceProxy('nav_pos_query', NavPosQuery)
-        nav_pos_resp = nav_pos_query(nav_pos_req)
+        try:
+            nav_pos_resp = nav_pos_query(nav_pos_req)
+        except:
+            rospy.logwarn("Failed to obtain nav/pos info for NEPI Link status message... nulling these fields")
+            nav_pos_resp = NavPosQueryResponse()
 
         # Compute some special formats from the response
         navsat_fix_time_posix = nav_pos_resp.nav_pos.fix.header.stamp.secs + (nav_pos_resp.nav_pos.fix.header.stamp.nsecs / 1000000000.0)
