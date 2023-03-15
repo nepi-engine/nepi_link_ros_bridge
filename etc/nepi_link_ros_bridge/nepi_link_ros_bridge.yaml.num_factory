@@ -80,9 +80,9 @@ lb:
       conversion_call: lb_convert_image
       #conversion_parameters:
 
-    - service: nav_pos_query                                      # Service name either absolute or relative to this node's parent namespace
+    - service: nav_pose_query                                      # Service name either absolute or relative to this node's parent namespace
       service_mod: nepi_ros_interfaces.srv                               # Module that includes this service type
-      service_type: NavPosQuery                                   # ROS Service type for this service
+      service_type: NavPoseQuery                                   # ROS Service type for this service
       #request_args:                                              # List of service request args as keyword/value pairs; leave out to use defaults
       #  - query_time: 0                                          # query_time = 0 indicates "most recent"
       snippet_type: nav                                           # Three-character type for NEPI data snippet filename

@@ -17,7 +17,7 @@ from nepi_ros_interfaces.msg import SaveData, SaveDataRate
 
 # Following is used for 3DX-specific NEPI LB Status creation -- remove when that
 # functionality is made generic
-from nepi_ros_interfaces.srv import NavPosQuery, NavPosQueryRequest, NavPosQueryResponse
+from nepi_ros_interfaces.srv import NavPoseQuery, NavPoseQueryRequest, NavPoseQueryResponse
 from nepi_ros_interfaces.msg import SystemStatus
 
 from nepi_edge_sdk_base.save_cfg_if import SaveCfgIF
@@ -268,29 +268,29 @@ class NEPILinkRosBridge:
         start_time_ros = rospy.get_rostime()
         timeout_ros_remaining = rospy.Duration.from_sec(timeout_s)
 
-        # Populate some of the optional fields. For now this will be hardcoded to the nav_pos query response, but eventually will be based on
+        # Populate some of the optional fields. For now this will be hardcoded to the nav_pose query response, but eventually will be based on
         # a parameter mapping defined in the config file
-        nav_pos_req = NavPosQueryRequest() # Default constructor will set the query_time = {0,0} as we want
-        nav_pos_query = rospy.ServiceProxy('nav_pos_query', NavPosQuery)
+        nav_pose_req = NavPoseQueryRequest() # Default constructor will set the query_time = {0,0} as we want
+        nav_pose_query = rospy.ServiceProxy('nav_pose_query', NavPoseQuery)
         try:
-            nav_pos_resp = nav_pos_query(nav_pos_req)
+            nav_pose_resp = nav_pose_query(nav_pose_req)
         except:
             rospy.logwarn("Failed to obtain nav/pos info for NEPI Link status message... nulling these fields")
-            nav_pos_resp = NavPosQueryResponse()
+            nav_pose_resp = NavPoseQueryResponse()
 
         # Compute some special formats from the response
-        navsat_fix_time_posix = nav_pos_resp.nav_pos.fix.header.stamp.secs + (nav_pos_resp.nav_pos.fix.header.stamp.nsecs / 1000000000.0)
+        navsat_fix_time_posix = nav_pose_resp.nav_pose.fix.header.stamp.secs + (nav_pose_resp.nav_pose.fix.header.stamp.nsecs / 1000000000.0)
         fix_time_rfc3339 = datetime.fromtimestamp(navsat_fix_time_posix).isoformat()
-        heading_ref_from_bool = NEPI_EDGE_HEADING_REF_TRUE_NORTH if nav_pos_resp.nav_pos.heading_true_north is True else NEPI_EDGE_HEADING_REF_MAG_NORTH
-        quaternion_orientation = (nav_pos_resp.nav_pos.orientation.x, nav_pos_resp.nav_pos.orientation.y,
-                                  nav_pos_resp.nav_pos.orientation.z, nav_pos_resp.nav_pos.orientation.w)
+        heading_ref_from_bool = NEPI_EDGE_HEADING_REF_TRUE_NORTH if nav_pose_resp.nav_pose.heading_true_north is True else NEPI_EDGE_HEADING_REF_MAG_NORTH
+        quaternion_orientation = (nav_pose_resp.nav_pose.orientation.x, nav_pose_resp.nav_pose.orientation.y,
+                                  nav_pose_resp.nav_pose.orientation.z, nav_pose_resp.nav_pose.orientation.w)
         euler_orientation_rad = euler_from_quaternion(quaternion_orientation)
 
         # Update the timeout period
         elapsed_ros = rospy.get_rostime() - start_time_ros
         timeout_ros_remaining -= elapsed_ros
         if (timeout_ros_remaining.to_sec() < 0.0):
-            rospy.logwarn("Timeout during nav_pos_status_query")
+            rospy.logwarn("Timeout during nav_pose_status_query")
             return
 
         # Temperature comes from the status message, which we must wait for
@@ -306,8 +306,8 @@ class NEPILinkRosBridge:
             # Ensure we always have a bare-minimum nepi-status after this call
             self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().isoformat())
             self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
-                                                      latitude_deg = nav_pos_resp.nav_pos.fix.latitude, longitude_deg = nav_pos_resp.nav_pos.fix.longitude,
-                                                      heading_ref = heading_ref_from_bool, heading_deg = nav_pos_resp.nav_pos.heading,
+                                                      latitude_deg = nav_pose_resp.nav_pose.fix.latitude, longitude_deg = nav_pose_resp.nav_pose.fix.longitude,
+                                                      heading_ref = heading_ref_from_bool, heading_deg = nav_pose_resp.nav_pose.heading,
                                                       roll_angle_deg = degrees(euler_orientation_rad[0]), pitch_angle_deg = degrees(euler_orientation_rad[1]))
             self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
             if export_on_complete is True:
