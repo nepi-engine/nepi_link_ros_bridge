@@ -11,13 +11,13 @@ lb:
   enabled: true                                                   # Specifies whether LB will be attempted
   session_max_time_s: 60                                          # Max amount of time to allow for LB connection
   data_sets_per_hour: 12                                          # Number of times per hour status and enabled data topics will be collected as an LB data set
-  max_data_wait_time_s: 30.0                                      # Max number of seconds to wait for enabled data to arrive before generating the output
+  max_data_wait_time_s: 10.0                                      # Max number of seconds to wait for enabled data to arrive before generating the output
 
-  # TODO: define the ROS topics and services that generate the individual fields of the status message... will hard-code for 3DX for now
+  # TODO: define the ROS topics and services that generate the individual fields of the status message... will hard-code for S2X for now
 
   # The following is a list of ROS topics published on the device that are eligible for conversion to LB data products
   available_data_sources:
-    - topic: sensor_3dx/stereo_cam_mgr/img_0/image_raw            # Topic name either absolute or relative to this node's parent namespace
+    - topic: sidus_ss400/idx/color_2d_image                       # Topic name either absolute or relative to this node's parent namespace
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
@@ -26,59 +26,50 @@ lb:
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: sensor_3dx/stereo_cam_mgr/img_1/image_raw
-      msg_mod: sensor_msgs.msg
-      msg_type: Image
-      snippet_type: img
-      snippet_id: 1
-      enabled: false
-      conversion_call: lb_convert_image
-      #conversion_parameters:
+    - topic: sidus_ss400/idx/bw_2d_image                          # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: sensor_3dx/stereo_cam_mgr/img_alt/image_raw
-      msg_mod: sensor_msgs.msg
-      msg_type: Image
-      snippet_type: img
-      snippet_id: 2
-      enabled: false
-      conversion_call: lb_convert_image
-      #conversion_parameters:
+    - topic: econ_routecam/idx/color_2d_image                     # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: sensor_3dx/stereo_cam_driver/left/image_rect_color
-      msg_mod: sensor_msgs.msg
-      msg_type: Image
-      snippet_type: img
-      snippet_id: 3
-      enabled: false
-      conversion_call: lb_convert_image
-      #conversion_parameters:
+    - topic: econ_routecam/idx/bw_2d_image                        # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: sensor_3dx/stereo_cam_driver/right/image_rect_color
-      msg_mod: sensor_msgs.msg
-      msg_type: Image
-      snippet_type: img
-      snippet_id: 4
-      enabled: false
-      conversion_call: lb_convert_image
-      #conversion_parameters:
+    - topic: onwote_hd_poe/idx/color_2d_image                     # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
-    - topic: sensor_3dx/stereo_cam_driver/point_cloud/cloud_registered
-      msg_mod: sensor_msgs.msg
-      msg_type: PointCloud2
-      snippet_type: pcd
-      snippet_id: 0
-      enabled: false
-      conversion_call: lb_convert_cloud
-      #conversion_parameters:
-
-    - topic: sensor_3dx/stereo_cam_driver/depth/depth_registered
-      msg_mod: sensor_msgs.msg
-      msg_type: Image
-      snippet_type: dep
-      snippet_id: 0
-      enabled: false
-      conversion_call: lb_convert_image
-      #conversion_parameters:
+    - topic: onwote_hd_poe/idx/bw_2d_image                        # Topic name either absolute or relative to this node's parent namespace
+      msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
+      msg_type: Image                                             # ROS Message type for this topic
+      snippet_type: img                                           # Three-character type for NEPI data snippet filename
+      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      enabled: true                                               # true ==> topic collected for LB data set
+      conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
+      #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
 
     - service: nav_pose_query                                      # Service name either absolute or relative to this node's parent namespace
       service_mod: nepi_ros_interfaces.srv                               # Module that includes this service type
@@ -119,11 +110,12 @@ lb:
       #conversion_parameters:
 
 hb:
-  enabled: true                                                   # Specifies whether HB will be attempted
+  enabled: false                                                  # Specifies whether HB will be attempted
   session_max_time_s: 300                                         # Max amount of time to allow for HB connection
   data_source_folder: /mnt/nepi-storage/data                      # Device filesystem path to the data folder for HB data offload
   auto_data_offload: false                                        # Automatically offload data source folder on each HB connection
 
+# TODO: This is a placeholder for a more complete event manager
 snapshot_event:
   triggers_lb: true                                               # Whether LB will run (as configured) when snapshot event occurs
   onboard_save_rate_hz: 1.0                                       # Onboard save data rate when snapshot event occurs. Zero indicates no data will be saved
