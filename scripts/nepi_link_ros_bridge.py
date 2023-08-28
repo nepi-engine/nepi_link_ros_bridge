@@ -271,6 +271,7 @@ class NEPILinkRosBridge:
         # Populate some of the optional fields. For now this will be hardcoded to the nav_pose query response, but eventually will be based on
         # a parameter mapping defined in the config file
         nav_pose_req = NavPoseQueryRequest() # Default constructor will set the query_time = {0,0} as we want
+        nav_pose_req.transform = True
         nav_pose_query = rospy.ServiceProxy('nav_pose_query', NavPoseQuery)
         try:
             nav_pose_resp = nav_pose_query(nav_pose_req)
@@ -281,9 +282,9 @@ class NEPILinkRosBridge:
         # Compute some special formats from the response
         navsat_fix_time_posix = nav_pose_resp.nav_pose.fix.header.stamp.secs + (nav_pose_resp.nav_pose.fix.header.stamp.nsecs / 1000000000.0)
         fix_time_rfc3339 = datetime.fromtimestamp(navsat_fix_time_posix).isoformat()
-        heading_ref_from_bool = NEPI_EDGE_HEADING_REF_TRUE_NORTH if nav_pose_resp.nav_pose.heading_true_north is True else NEPI_EDGE_HEADING_REF_MAG_NORTH
-        quaternion_orientation = (nav_pose_resp.nav_pose.orientation.x, nav_pose_resp.nav_pose.orientation.y,
-                                  nav_pose_resp.nav_pose.orientation.z, nav_pose_resp.nav_pose.orientation.w)
+        heading_ref_from_bool = NEPI_EDGE_HEADING_REF_MAG_NORTH # This is no longer specified by nav_pose_mgr, so here it is just hard-coded
+        quaternion_orientation = (nav_pose_resp.nav_pose.odom.pose.pose.orientation.x, nav_pose_resp.nav_pose.odom.pose.pose.orientation.y,
+                                  nav_pose_resp.nav_pose.odom.pose.pose.orientation.z, nav_pose_resp.nav_pose.odom.pose.pose.orientation.w)
         euler_orientation_rad = euler_from_quaternion(quaternion_orientation)
 
         # Update the timeout period
@@ -307,7 +308,7 @@ class NEPILinkRosBridge:
             self.latest_nepi_status = NEPIEdgeLBStatus(datetime.utcnow().isoformat())
             self.latest_nepi_status.setOptionalFields(navsat_fix_time_rfc3339 = fix_time_rfc3339,
                                                       latitude_deg = nav_pose_resp.nav_pose.fix.latitude, longitude_deg = nav_pose_resp.nav_pose.fix.longitude,
-                                                      heading_ref = heading_ref_from_bool, heading_deg = nav_pose_resp.nav_pose.heading,
+                                                      heading_ref = heading_ref_from_bool, heading_deg = nav_pose_resp.nav_pose.heading.heading,
                                                       roll_angle_deg = degrees(euler_orientation_rad[0]), pitch_angle_deg = degrees(euler_orientation_rad[1]))
             self.latest_nepi_status.setOptionalFields(temperature_c = sys_status_msg.temperatures[0])
             if export_on_complete is True:
