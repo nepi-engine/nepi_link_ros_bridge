@@ -6,6 +6,7 @@ import os
 from shutil import copyfile
 import json
 from math import degrees
+import glob
 
 import rospy
 from tf.transformations import euler_from_quaternion
@@ -417,6 +418,22 @@ class NEPILinkRosBridge:
         with open(nepi_bot_cfg_file, 'r') as f:
             cfg_dict = json.load(f)
         return cfg_dict['alias'], cfg_dict['lb_conn_order']
+    
+    def extractPublicSSHKeyString(self):
+        # Query param server for nepi-bot root folder and use that to determine nepi-bot SSH key
+        nepi_bot_root_folder = rospy.get_param('~nepi_bot_root_folder', DEFAULT_NEPI_BOT_ROOT_FOLDER)
+        nepi_bot_ssh_pub_key_wildcard_search = os.path.join(nepi_bot_root_folder, 'devinfo/id*pub')
+        nepi_bot_ssh_pub_key_files = glob.glob(nepi_bot_ssh_pub_key_wildcard_search)
+        keyfile_count = len(nepi_bot_ssh_pub_key_files)
+        if keyfile_count == 0:
+            rospy.logerr("No nepi-bot public SSH keyfile detected.")
+            return "file not found"
+        
+        if keyfile_count > 1:
+            rospy.logwarn("Found " + str(keyfile_count) + " nepi-bot public SSH keyfiles... will report the first one")
+
+        with open(nepi_bot_ssh_pub_key_files[0], 'r') as f:
+            return f.read()
 
     def updateFromParamServer(self):
         # Most parameters are handled on an as-needed basis, so here we only
@@ -576,6 +593,7 @@ class NEPILinkRosBridge:
         # because it can change via NEPI standard config or SOFTWARE channels
         resp.status.nuid = self.nepi_sdk.getBotNUID()
         resp.status.alias, resp.status.lb_comms_types = self.extractFieldsFromNEPIBotConfig()
+        resp.status.public_ssh_key = self.extractPublicSSHKeyString()
         resp.status.bot_running = self.bot_running
 
         # Many fields come from the param server
