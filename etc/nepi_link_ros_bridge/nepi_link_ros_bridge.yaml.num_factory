@@ -1,5 +1,5 @@
 enabled: false                                                    # Top-level NEPI Link device enabled/disabled
-auto_attempts_per_hour: 6                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
+auto_attempts_per_hour: 0                                         # Number of times edge device will attempt to contact server per hour (LB and HB as configured)
 nepi_bot_root_folder: /opt/nepi/nepi_link/nepi-bot                # Path on device filesystem to root folder of a nepi-bot instance
 nepi_log_storage_enabled: false                                   # True if logs should be stored, false otherwise. If true, logs will be deleted as they are moved to storage folder
 nepi_log_storage_folder: /mnt/nepi-storage/data/nepi-bot          # Path on device filesystem to store NEPI Bot logs
@@ -10,7 +10,7 @@ reboot_sys_on_sw_update: true                                     # True if a fu
 lb:
   enabled: true                                                   # Specifies whether LB will be attempted
   session_max_time_s: 60                                          # Max amount of time to allow for LB connection
-  data_sets_per_hour: 12                                          # Number of times per hour status and enabled data topics will be collected as an LB data set
+  data_sets_per_hour: 0                                           # Number of times per hour status and enabled data topics will be collected as an LB data set
   max_data_wait_time_s: 10.0                                      # Max number of seconds to wait for enabled data to arrive before generating the output
 
   # TODO: define the ROS topics and services that generate the individual fields of the status message... will hard-code for S2X for now
