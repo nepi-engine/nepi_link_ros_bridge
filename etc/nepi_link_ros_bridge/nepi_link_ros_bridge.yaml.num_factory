@@ -30,7 +30,7 @@ lb:
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 1                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
@@ -39,7 +39,7 @@ lb:
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 2                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
@@ -48,7 +48,7 @@ lb:
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 3                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
@@ -57,7 +57,7 @@ lb:
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 4                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
@@ -66,7 +66,7 @@ lb:
       msg_mod: sensor_msgs.msg                                    # ROS module name that contains the message definition
       msg_type: Image                                             # ROS Message type for this topic
       snippet_type: img                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 5                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> topic collected for LB data set
       conversion_call: lb_convert_image                           # Function (available to this node) called to convert ROS message to LB data file
       #conversion_parameters:                                     # List of parameter objects (python name=value keyword params) passed to conversion_call
@@ -77,7 +77,7 @@ lb:
       #request_args:                                              # List of service request args as keyword/value pairs; leave out to use defaults
       #  - query_time: 0                                          # query_time = 0 indicates "most recent"
       snippet_type: nav                                           # Three-character type for NEPI data snippet filename
-      snippet_id: 0                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
+      snippet_id: 6                                               # Numerical ID for NEPI data snippet, unique for this instance of the snippet type
       enabled: true                                               # true ==> service response collected for LB data set
       conversion_call: lb_ros_msg_to_yaml                         # The totally generic conversion routine
       #conversion_parameters:
