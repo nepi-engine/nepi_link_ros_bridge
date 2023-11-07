@@ -9,10 +9,11 @@ from math import degrees
 import glob
 
 import rospy
+import rosservice
 from tf.transformations import euler_from_quaternion
 
 from std_msgs.msg import Bool, Empty, Float32
-from nepi_ros_interfaces.msg import StringArray
+from nepi_ros_interfaces.msg import StringEnable
 from nepi_ros_interfaces.srv import NEPILinkStatusQuery, NEPILinkStatusQueryResponse
 from nepi_ros_interfaces.msg import SaveData, SaveDataRate
 
@@ -247,7 +248,7 @@ class NEPILinkRosBridge:
             rospy.logwarn('No conversion function ' + conversion_call + ' in module ' + conversion_call)
             return
 
-        output_file_base = './' + topic.replace('/', '.')
+        output_file_base = topic.replace('/','.').strip('.')
         conversion_args = {'output_file_basename': output_file_base}
         if conversion_parameters is not None:
             conversion_args.update(conversion_parameters)
@@ -341,38 +342,96 @@ class NEPILinkRosBridge:
         wait_for_message_threads['nepi_status'] = threading.Thread(target=self.createNEPILinkStatus, kwargs={'timeout_s': max_data_wait_time_s})
         wait_for_message_threads['nepi_status'].start()
 
-        # Now, iterate through the available_data_sources (param server) to find those that are enabled
-        available_data_sources = rospy.get_param("~lb/available_data_sources", None)
-        for entry in available_data_sources:
-            wait_thread_args = {'timeout': max_data_wait_time_s,
-                                'snippet_type': entry['snippet_type'],
-                                'snippet_id': entry['snippet_id'],
-                                'conversion_call': entry['conversion_call']}
-            if 'conversion_parameters' in entry:
-                wait_thread_args['conversion_parameters'] = entry['conversion_parameters']
-            # The rest of the args depend on whether this is a topic or service
-            ros_id = None
-            if 'topic' in entry and entry['enabled'] is True:
-                ros_id = entry['topic']
-                wait_thread_args['topic'] = ros_id
-                wait_thread_args['msg_type'] = entry['msg_type']
-                wait_thread_args['msg_mod'] = entry['msg_mod']
-                wait_thread_args['is_service_response'] = False
+        supported_msg_types = self.getHandledMsgTypes()
+        enabled_topics = rospy.get_param("~lb/enabled_topics")
+        available_topics = rospy.get_published_topics()
 
-            elif 'service' in entry and entry['enabled'] is True:
-                ros_id = entry['service']
-                wait_thread_args['topic'] = ros_id
-                wait_thread_args['msg_type'] = entry['service_type']
-                wait_thread_args['msg_mod'] = entry['service_mod']
-                wait_thread_args['is_service_response'] = True
-                if 'request_args' in entry:
-                    wait_thread_args['service_req_kwargs'] = entry['request_args']
+        running_snippet_ids = {}
+        base_namespace = rospy.get_namespace()
+        for entry in available_topics:
+            msg_type = entry[1]
+            topic_name = entry[0]
+            topic_name_short = topic_name[len(base_namespace):] if topic_name.startswith(base_namespace) else topic_name
 
-            else: # Either not enabled or ill-formed entry (missing topic or service)
+            # Filter out any topics that have unsupported message types or are not currently enabled for LB
+            if (msg_type not in supported_msg_types) or \
+               ((topic_name not in enabled_topics) and (topic_name_short not in enabled_topics)):
                 continue
 
-            wait_for_message_threads[ros_id] = threading.Thread(target=self.getAndConvertDataMessage, kwargs=wait_thread_args)
-            wait_for_message_threads[ros_id].start()
+            # Remove entry from enabled_topics for better performance on next loop and also so that we can
+            # report on any topics that are "enabled" but not advertised yet.
+            try:
+                enabled_topics.remove(topic_name)
+            except:
+                enabled_topics.remove(topic_name_short)
+
+            # Gather the dictionary of per-type settings
+            msg_type_settings = supported_msg_types[msg_type]
+
+            # Ensure snippet IDs are unique for each topic with a particular message type
+            if msg_type in running_snippet_ids:
+                running_snippet_ids[msg_type] += 1
+            else:
+                running_snippet_ids[msg_type] = 0
+
+            # Generate the python name for the module that includes this message type and name of the object
+            python_msg_module, python_msg_type = msg_type.split('/')
+            python_msg_module += '.msg'
+
+            wait_thread_args = {'timeout': max_data_wait_time_s,
+                                'topic': topic_name, 
+                                'snippet_type': msg_type_settings['snippet_type'],
+                                'snippet_id': running_snippet_ids[msg_type],
+                                'conversion_call': msg_type_settings['conversion_call'],
+                                'msg_mod': python_msg_module,
+                                'msg_type': python_msg_type,
+                                'is_service_response': False}
+            wait_for_message_threads[topic_name] = threading.Thread(target=self.getAndConvertDataMessage, kwargs=wait_thread_args)
+            wait_for_message_threads[topic_name].start()
+        
+        for entry in enabled_topics:
+            rospy.loginfo("LB enabled topic " + entry + " is not currently provided by any node.")
+
+        # Now do the same for services that are enabled
+        available_services = rosservice.get_service_list()
+        enabled_services = rospy.get_param('~lb/enabled_services')
+        supported_srv_types = self.getHandledSrvTypes()
+        for service in enabled_services:
+            if not service.startswith('/'):
+                service = rospy.get_namespace() + service # Fully qualified
+            # Filter out any services that are not currently being provided
+            if service not in available_services:
+                rospy.logwarn("LB enabled service " + service + " is not currently provided by any node")
+                continue
+
+            # Filter out any services whose service type is not handled
+            service_type = rosservice.get_service_type(service)
+            if service_type not in supported_srv_types:
+                rospy.logwarn("Service " + service + " of type " + service_type + " is of unconfigured/unsupported type")
+                continue
+
+            if service_type in running_snippet_ids:
+                running_snippet_ids[service_type] += 1
+            else:
+                running_snippet_ids[service_type] = 0
+
+            python_srv_module, python_srv_type = service_type.split('/')
+            python_srv_module += '.srv'
+            
+            service_type_settings = supported_srv_types[service_type]
+            wait_thread_args = {'timeout': max_data_wait_time_s,
+                                'topic': service,
+                                'snippet_type': service_type_settings['snippet_type'],
+                                'snippet_id': running_snippet_ids[service_type],
+                                'conversion_call': service_type_settings['conversion_call'],
+                                'msg_type': python_srv_type,
+                                'msg_mod': python_srv_module,
+                                'is_service_response': True}
+            if 'request_args' in service_type_settings:
+                wait_thread_args['service_req_kwargs'] = service_type_settings['request_args']
+
+            wait_for_message_threads[service] = threading.Thread(target=self.getAndConvertDataMessage, kwargs=wait_thread_args)
+            wait_for_message_threads[service].start()
 
         # Now wait for all the child threads to terminate
         for t in wait_for_message_threads:
@@ -512,34 +571,50 @@ class NEPILinkRosBridge:
             lb_enabled = rospy.get_param('~lb/enabled', DEFAULT_LB_ENABLED)
             self.updateDataCollectionScheduler(lb_enabled, new_sets_per_hour)
 
-    def selectLBDataSources(self, msg):
-        available_sources = rospy.get_param("~lb/available_data_sources", None)
-        # first set all sources as disabled -- we will individually enable them below
-        for source in available_sources:
-            source['enabled'] = False
+    def selectLBDataSource(self, msg):
+        enabled_topics = rospy.get_param('~lb/enabled_topics', [])
+        enabled_services = rospy.get_param('~lb/enabled_services', [])
 
-        for selected in msg.entries:
-            selected_identified = False
-            for available in available_sources:
-                if 'topic' in available:
-                    if available['topic'] == selected:
-                        available['enabled'] = True
-                        selected_identified = True
-                        break
-                elif 'service' in available:
-                    if available['service'] == selected:
-                        available['enabled'] = True
-                        selected_identified = True
-                        break
-            # Now ensure that we found the selected entry
-            if selected_identified is False:
-                rospy.logwarn(selected + " does not appear to be an available LB data source... cannot enable")
+        ros_basename = rospy.get_namespace()
+        source_long_name = msg.entry if msg.entry.startswith(ros_basename) else (ros_basename + msg.entry)
+        source_short_name = source_long_name[len(ros_basename):]
+        
+        if msg.enable is False: # Trying to disable a data source
+            rospy.loginfo("Disabling data source %s by request", msg.entry)
+            if source_long_name in enabled_topics:
+                enabled_topics.remove(source_long_name)
+            elif source_short_name in enabled_topics:
+                enabled_topics.remove(source_short_name)
+            elif source_long_name in enabled_services:
+                enabled_services.remove(source_long_name)
+            elif source_short_name in enabled_services:
+                enabled_services.remove(source_short_name)
             else:
-                rospy.loginfo("Enabling LB data source: " + selected)
+                rospy.logwarn("%s is not currently enabled as LB data source... ignoring disable request", msg.entry)
+                return
+        else: # Trying to enable a data source
+            rospy.loginfo("Enabling topic data source %s by request", msg.entry)
 
-        # Now write back the updated sources
-        rospy.set_param("~lb/available_data_sources", available_sources)
+            # Must determine if this is topic or service
+            available_topics = rospy.get_published_topics()
+            available_services = rosservice.get_service_list()
+        
+            is_service = False
+            is_topic = any(source_long_name in sublist for sublist in available_topics) or \
+                       any(source_short_name in sublist for sublist in available_topics)
+            if not is_topic:
+                is_service = (source_long_name in available_services) or (source_short_name in available_services)
 
+            if is_topic:
+                enabled_topics.append(msg.entry)
+            elif is_service:
+                enabled_services.append(msg.entry)
+            else:
+                rospy.logwarn("Data source enable request for " + msg.entry + " is of unknown class (topic or service); ignoring")
+
+        rospy.set_param("~lb/enabled_topics", enabled_topics)
+        rospy.set_param("~lb/enabled_services", enabled_services)
+    
     def enableHB(self, msg):
         # Nothing to do here but update the param server
         rospy.loginfo("HB: " + ("Enabled" if (msg.data == True) else "Disabled"))
@@ -586,6 +661,47 @@ class NEPILinkRosBridge:
 
         self.snapshot_event_handler_running = False
 
+    def getHandledMsgTypes(self):
+        # ROS gets confused by YAML dictionaries that include a '/' in the key, so we use deeper nested dictionaries in the param file, but convert them
+        # to something more natural here
+        handled_msg_types = {}
+        msg_type_dicts = rospy.get_param('~lb/supported_msg_types', {})
+        for d in msg_type_dicts:
+            handled_msg_types[d['package'] + '/' + d['type']] = {'snippet_type': d['snippet_type'], \
+                                                                 'conversion_call': d['conversion_call']}
+        return handled_msg_types
+    
+    def getHandledSrvTypes(self):
+        # ROS gets confused by YAML dictionaries that include a '/' in the key, so we use deeper nested dictionaries in the param file, but convert them
+        # to something more natural here
+        handled_srv_types = {}
+        srv_type_dicts = rospy.get_param('~lb/supported_srv_types', {})        
+        for d in srv_type_dicts:
+            key = d['package'] + '/' + d['type']
+            handled_srv_types[key] = {'snippet_type': d['snippet_type'], \
+                                                        'conversion_call': d['conversion_call']}
+            if 'request_args' in d:
+                handled_srv_types[key]['request_args'] = d['request_args']
+            
+        return handled_srv_types
+
+    def getAvailableHandledServices(self):
+        while not rospy.is_shutdown():
+            available_handled_services = [] 
+            handled_srv_types = self.getHandledSrvTypes()
+            available_services = rosservice.get_service_list()
+            for service in available_services:
+                service_type = rosservice.get_service_type(service) # This call is very slow, unfortunately -- hence this separate thread
+                if service_type not in handled_srv_types:
+                    continue
+                self.available_handled_services
+                available_handled_services.append(service)
+
+            with self.available_handled_services_lock:
+                self.available_handled_services = available_handled_services.copy()
+
+            rospy.sleep(3.0)        
+
     def provideNEPILinkStatus(self, req):
         resp = NEPILinkStatusQueryResponse()
 
@@ -602,15 +718,43 @@ class NEPILinkRosBridge:
         resp.status.log_storage_enabled = rospy.get_param("~nepi_log_storage_enabled", DEFAULT_NEPI_LOG_STORAGE_ENABLED)
         resp.status.lb_enabled = rospy.get_param("~lb/enabled", DEFAULT_LB_ENABLED)
         resp.status.lb_data_sets_per_hour = rospy.get_param("~lb/data_sets_per_hour", DEFAULT_LB_DATA_SETS_PER_HOUR)
-        for entry in rospy.get_param("~lb/available_data_sources", None):
-            if 'topic' in entry:
-                resp.status.lb_available_data_sources.append(entry['topic'])
-                if entry['enabled'] is True:
-                    resp.status.lb_selected_data_sources.append(entry['topic'])
-            elif 'service' in entry:
-                resp.status.lb_available_data_sources.append(entry['service'])
-                if entry['enabled'] is True:
-                    resp.status.lb_selected_data_sources.append(entry['service'])
+
+        available_data_sources = []
+        selected_data_sources = []
+        base_namespace = rospy.get_namespace()
+
+        handled_msg_types = self.getHandledMsgTypes()
+        enabled_topics = rospy.get_param('~lb/enabled_topics', [])
+        available_topics = rospy.get_published_topics()
+        for entry in available_topics:
+            msg_type = entry[1]
+            if msg_type not in handled_msg_types:
+                #rospy.logwarn("Debug: Skipping unhandled type " + msg_type)
+                continue
+            
+            topic_name = entry[0]
+            topic_name_short = topic_name[len(base_namespace):] if topic_name.startswith(base_namespace) else topic_name 
+            
+            available_data_sources.append(topic_name)
+            # We only add enabled/selected items for which we can determine their topic type (not from config params), so
+            # some node must already be publishing these.
+            if (topic_name in enabled_topics) or (topic_name_short in enabled_topics):
+                selected_data_sources.append(topic_name)
+        
+        # Because it is very slow to check service types, we do that asynchronously in a separate thread and just make a threadsafe copy here
+        available_services = []
+        with self.available_handled_services_lock:
+            available_services = self.available_handled_services.copy()
+        enabled_services = rospy.get_param('~lb/enabled_services', [])
+        for service in available_services:
+            service_name_short = service[len(base_namespace):] if service.startswith(base_namespace) else service
+            available_data_sources.append(service)
+            if (service in enabled_services) or (service_name_short in enabled_services):
+                selected_data_sources.append(service)
+
+        resp.status.lb_available_data_sources = available_data_sources
+        resp.status.lb_selected_data_sources = selected_data_sources                
+        
         resp.status.hb_enabled = rospy.get_param("~hb/enabled", DEFAULT_HB_ENABLED)
         resp.status.hb_auto_data_offloading_enabled  = rospy.get_param("~hb/auto_data_offload", DEFAULT_HB_AUTO_DATA_OFFLOAD)
 
@@ -631,7 +775,6 @@ class NEPILinkRosBridge:
             resp.status.hb_data_queue_size_mb = getDirectorySize(rospy.get_param('~hb/data_source_folder', DEFAULT_HB_DATA_SOURCE_FOLDER)) / 1000000.0
         else:
             resp.status.hb_data_queue_size_mb = 0
-
 
         return resp
 
@@ -661,6 +804,12 @@ class NEPILinkRosBridge:
         self.snapshot_event_handler_running = False
         self.onboard_save_timer = None
 
+        # Fields for very slow service type checks to run in separate thread
+        self.available_handled_services = []
+        self.available_handled_services_lock = threading.Lock()
+        self.service_check_thread = threading.Thread(target=self.getAvailableHandledServices)
+        self.service_check_thread.start()
+
         # Subscribe to topics
         rospy.Subscriber('~enable', Bool, self.enableNEPIEdge)
         rospy.Subscriber('~connect_now', Empty, self.connectNow)
@@ -669,7 +818,7 @@ class NEPILinkRosBridge:
         rospy.Subscriber('~lb/enable', Bool, self.enableLB)
         rospy.Subscriber('~lb/create_data_set_now', Empty, self.createLBDataSetNow)
         rospy.Subscriber('~lb/set_data_sets_per_hour', Float32, self.setLBDataSetsPerHour)
-        rospy.Subscriber('~lb/select_data_sources', StringArray, self.selectLBDataSources)
+        rospy.Subscriber('~lb/select_data_source', StringEnable, self.selectLBDataSource)
         rospy.Subscriber('~hb/enable', Bool, self.enableHB)
         rospy.Subscriber('~hb/set_auto_data_offloading', Bool, self.setHBAutoDataOffloading)
 
