@@ -699,9 +699,12 @@ class NEPILinkRosBridge:
             handled_srv_types = self.getHandledSrvTypes()
             available_services = rosservice.get_service_list()
             for service in available_services:
-                service_type = rosservice.get_service_type(service) # This call is very slow, unfortunately -- hence this separate thread
+                try:
+                    service_type = rosservice.get_service_type(service) # This call is very slow, unfortunately -- hence this separate thread
+                except:
+                    continue 
                 if service_type not in handled_srv_types:
-                    continue
+                    continue    
                 self.available_handled_services
                 available_handled_services.append(service)
 
